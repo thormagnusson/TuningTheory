@@ -1,4 +1,8 @@
 
+
+// NOTE the below might look strange, but it's important to separate MIDI info (key-tuningtonic) to key (for key-dependent tunings)
+// ratios[key-tuningtonic]*tuningtonic.midicps
+
 TuningTheory {
 
 	var gui, keybview, notes, group, ratios, tuningtonic, tonic, pitchBend;
@@ -38,7 +42,7 @@ TuningTheory {
 		notes.copy.do({arg arraysynth, key;
 			if( arraysynth != nil , { 
 				arraysynth.release;
-				notes[key] = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+				notes[key] = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
 			});
 		});
 	}
@@ -98,7 +102,7 @@ TuningTheory {
 		notes = Array.fill(127, { nil });
 		group = Group.new; // we create a Group to be able to set cutoff of all active notes
 
-		calcFreq = {arg key; ratios[key]*tuningtonic.midicps };
+		calcFreq = {arg key; ratios[key-tuningtonic]*tuningtonic.midicps };
 		
 		MIDIdef.noteOn(\myOndef, {arg vel, key, channel, device;
 			
@@ -163,8 +167,8 @@ TuningTheory {
 					fString.string_(key.asString++"  :  "++key.midinotename);
 					if(playMode, {
 						key.postln;
-						[\freq, ratios[key]*tuningtonic.midicps, \tonic, tonic].postln;
-						mousesynth = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
+						[\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \tonic, tonic].postln;
+						mousesynth = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
 //							if(timerReadyFlag, { 
 //								timerReadyFlag = false;
 //								thistime = TempoClock.default.beats;
@@ -181,6 +185,9 @@ TuningTheory {
 
 					}, {
 						tonic = key; 
+						tuningtonic = tonic % 12; // this is the reference for non-et12 tempered scales
+						[\tuningtonic, tonic].postln;
+						
 						pitchCircle.drawSet(chord, tonic%12);
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));				scaleChordString.string_((tonic+chord).midinotename.asString);
 						chord.postln;
@@ -192,7 +199,7 @@ TuningTheory {
 					if(playMode, {
 						key.postln;
 						//(note.midicps)*tuningratios.wrapAt(note-(tonic%12)).postln;
-						mousesynth = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
+						mousesynth = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
 //							if(timerReadyFlag, { 
 //								timerReadyFlag = false;
 //								thistime = TempoClock.default.beats;
@@ -405,7 +412,7 @@ TuningTheory {
 						chord.do({arg key;
 							{var a;
 							key = key + tonic;
-							a = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
+							a = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
 							0.35.wait;
 							a.release}.fork;
 							0.4.wait;
@@ -414,7 +421,7 @@ TuningTheory {
 						chord.do({arg key;
 							{var a;
 							key = key + tonic;
-							a = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
+							a = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
 							0.8.wait;
 							a.release}.fork;
 						});
@@ -423,7 +430,7 @@ TuningTheory {
 						tempchord.mirror.do({arg key;
 							{var a;
 							key = key + 48;
-							a = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
+							a = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
 							0.3.wait;
 							a.release}.fork;
 							0.3.wait;
