@@ -16,8 +16,9 @@ TuningTheory {
 		tonic = 60;
 		pitchBend = 1;
 		outbus = 0;
-		synth = \moog;
-		synthdefs = [\moog, \saw];
+		synthdefs = [\saw, \moog];
+		synth = synthdefs[0];
+		
 		gui = false; // no GUI by default
 		
 		this.tuning_(\et12);
@@ -27,18 +28,21 @@ TuningTheory {
 		
 		Server.default.waitForBoot({
 			"MIDI Keyboard Ready for Play !!! ".postln;
-
 			this.makeSynths();
 			this.midiSetup();
-			
 		});
-
 	}
 	
 	synth_ {arg stype;
-		synth = stype;	
+		synth = stype;
+		notes.copy.do({arg arraysynth, key;
+			if( arraysynth != nil , { 
+				arraysynth.release;
+				notes[key] = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+			});
+		});
 	}
-	
+					
 	tuning_ { | argtuning |
 		var temptuningratios, tuningratios;
 		tuning = argtuning;
@@ -105,7 +109,7 @@ TuningTheory {
 			[\keymidicps, key.midicps].postln;
 			[\keymidicps, key.midicps].postln;
 			
-			notes[key] = Synth(synth, [\freq, freq, \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
+			notes[key] = Synth(synth, [\out, outbus, \freq, freq, \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
 			if(gui, {	 {keybview.keyDown(key)}.defer });
 		});
 		MIDIdef.noteOff(\myOffdef, {arg vel, key, channel, device;
@@ -138,6 +142,17 @@ TuningTheory {
 		
 		var bounds = Rect(20, 5, 1000, 222);
 		gui = true;
+		
+		
+								tuningtonic = 0; // by default in C
+								tonic = 60;
+								pitchBend = 1;
+								outbus = 0;
+								synthdefs = [\saw, \moog];
+								synth = synthdefs[0];
+		
+		gui = false; // no GUI by default
+
 		
 		playMode = true;
 		playmodeSC = "chord";
@@ -223,7 +238,7 @@ TuningTheory {
 				});
 		
 		
-		midiclientmenu = PopUpMenu.new(win,Rect(10,10,125,16))
+		midiclientmenu = PopUpMenu.new(win,Rect(10,5,150,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(MIDIClient.sources.collect({arg item; item.device + item.name}))
 				.value_(0)
@@ -233,14 +248,16 @@ TuningTheory {
 					MIDIIn.connect(item.value, MIDIClient.sources.at(item.value));
 				});
 		
-		synthdefmenu = PopUpMenu.new(win,Rect(10,31,80,16))
+		synthdefmenu = PopUpMenu.new(win,Rect(10,31,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(synthdefs)
 				.value_(synthdefs.indexOf(synth))
 				.background_(Color.white)
 				.action_({arg item;
-					synth = synthdefs[item.value].asSymbol;
-					"synth is : ".post; synth.postln;
+					this.synth_(synthdefs[item.value].asSymbol);
+
+				//	synth = synthdefs[item.value].asSymbol;
+				//	"synth is : ".post; synth.postln;
 //					if(patternPlaying, {
 //								pattern = Pdef(\pattern,
 //									Pbind(
@@ -258,7 +275,7 @@ TuningTheory {
 //					});
 				});
 		
-		outbusmenu = PopUpMenu.new(win,Rect(100,31,40,16))
+		outbusmenu = PopUpMenu.new(win,Rect(115,31,45,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_({|i| ((i*2).asString++","+((i*2)+1).asString)}!26)
 				.value_(0)
@@ -268,19 +285,19 @@ TuningTheory {
 					"outbus is : ".post; outbus.postln;
 				});
 		
-		pitchCircle = XiiPitchCircle.new(12, size:200, win: win);
+		pitchCircle = XiiTuningPitchCircle.new(12, size:200, win: win);
 		
-		fundNoteString = StaticText.new(win, Rect(500, 10, 100, 20)).string_("tonic :")
+		fundNoteString = StaticText.new(win, Rect(540, 5, 100, 20)).string_("tonic :")
 						.font_(Font.new("Helvetica", 9));
 						
-		fString = StaticText.new(win, Rect(570, 10, 50, 20))
-					.string_(tonic.asString++"  :  "++tonic.midinotename)
+		fString = StaticText.new(win, Rect(590, 5, 50, 20))
+					.string_(tonic.asString++"  -  "++tonic.midinotename)
 					.font_(Font.new("Helvetica", 9));
 		
-		scaleOrChord = StaticText.new(win, Rect(500, 30, 100, 20)).string_("Chord :")
+		scaleOrChord = StaticText.new(win, Rect(540, 30, 100, 20)).string_("Chord :")
 						.font_(Font.new("Helvetica", 9));
-		scaleChordString = StaticText.new(win, Rect(540, 30, 150, 20))
-						.string_(tonic.asString++"  :  "++tonic.midinotename)
+		scaleChordString = StaticText.new(win, Rect(590, 30, 250, 20))
+						.string_(tonic.asString++"  -  "++tonic.midinotename)
 						.font_(Font.new("Helvetica", 9));
 		
 		chords = XiiTheory.chords;
@@ -295,7 +312,7 @@ TuningTheory {
 		scales.do({arg item; scalenames = scalenames.add(item[0])});
 		scale = scales[0][1];
 		
-		chordmenu = PopUpMenu.new(win,Rect(200,10,100,16))
+		chordmenu = PopUpMenu.new(win,Rect(180,5,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(chordnames)
 				.background_(Color.white)
@@ -313,13 +330,13 @@ TuningTheory {
 				})
 				.keyDownAction_({arg view, key, mod, unicode; 
 					if (unicode == 13, { play.valueAction_(1) });
-					if (unicode == 16rF700, { view.valueAction_(view.value+1) });
-					if (unicode == 16rF703, { view.valueAction_(view.value+1) });
-					if (unicode == 16rF701, { view.valueAction_(view.value-1) });
-					if (unicode == 16rF702, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF700, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF703, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF701, { view.valueAction_(view.value+1) });
+					if (unicode == 16rF702, { view.valueAction_(view.value+1) });
 				});
 		
-		scalemenu = PopUpMenu.new(win,Rect(200,31,100,16))
+		scalemenu = PopUpMenu.new(win,Rect(180,31,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(scalenames)
 				.background_(Color.white)
@@ -336,14 +353,14 @@ TuningTheory {
 				})
 				.keyDownAction_({arg view, key, mod, unicode; 
 					if (unicode == 13, { play.valueAction_(1) });
-					if (unicode == 16rF700, { view.valueAction_(view.value+1) });
-					if (unicode == 16rF703, { view.valueAction_(view.value+1) });
-					if (unicode == 16rF701, { view.valueAction_(view.value-1) });
-					if (unicode == 16rF702, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF700, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF703, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF701, { view.valueAction_(view.value+1) });
+					if (unicode == 16rF702, { view.valueAction_(view.value+1) });
 				});
 		
 		
-		PopUpMenu.new(win,Rect(320,31,100,16))
+		PopUpMenu.new(win,Rect(300,31,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(tunings.collect({arg tuning; tuning[0]}))
 				.background_(Color.white)
@@ -358,13 +375,13 @@ TuningTheory {
 				})
 				.keyDownAction_({arg view, key, mod, unicode; 
 					if (unicode == 13, { play.valueAction_(1) });
-					if (unicode == 16rF700, { view.valueAction_(view.value+1) });
-					if (unicode == 16rF703, { view.valueAction_(view.value+1) });
-					if (unicode == 16rF701, { view.valueAction_(view.value-1) });
-					if (unicode == 16rF702, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF700, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF703, { view.valueAction_(view.value-1) });
+					if (unicode == 16rF701, { view.valueAction_(view.value+1) });
+					if (unicode == 16rF702, { view.valueAction_(view.value+1) });
 				});
 		
-		OSCIIRadioButton.new(win, Rect(680, 10, 12, 12), "play mode")
+		OSCIIRadioButton.new(win, Rect(300, 5, 12, 12), "play mode")
 			.font_(Font.new("Helvetica", 9))
 			.value_(1)
 			.action_({arg sl; 
@@ -377,7 +394,7 @@ TuningTheory {
 				});
 			});
 		
-		play = Button.new(win,Rect(680,31,60,16))
+		play = Button.new(win,Rect(420,5,90,16))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["play scale", Color.black, Color.clear]])
 			.action_({
@@ -385,28 +402,28 @@ TuningTheory {
 				chord.postln;
 				Task({
 					if(playmodeSC == "chord", {
-						chord.do({arg note;
+						chord.do({arg key;
 							{var a;
-							note = note + tonic;
-							a = Synth(synth, [\freq, (note.trunc(12)+(tuning.semitones[note%12])).midicps, \out, outbus]);
+							key = key + tonic;
+							a = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
 							0.35.wait;
 							a.release}.fork;
 							0.4.wait;
 						});
 						0.6.wait;
-						chord.do({arg note;
+						chord.do({arg key;
 							{var a;
-							note = note + tonic;
-							a = Synth(synth, [\freq, (note.trunc(12)+(tuning.semitones[note%12])).midicps, \out, outbus]);
+							key = key + tonic;
+							a = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
 							0.8.wait;
 							a.release}.fork;
 						});
 					}, {
 						tempchord = chord ++ 12;
-						tempchord.mirror.do({arg note;
+						tempchord.mirror.do({arg key;
 							{var a;
-							note = note + tonic;
-							a = Synth(synth, [\freq, (note.trunc(12)+(tuning.semitones[note%12])).midicps, \out, outbus]);
+							key = key + 48;
+							a = Synth(synth, [\freq, ratios[key]*tuningtonic.midicps, \out, outbus]);
 							0.3.wait;
 							a.release}.fork;
 							0.3.wait;
@@ -415,7 +432,7 @@ TuningTheory {
 				}).start;
 			});
 		
-		patRecButt = Button.new(win,Rect(720,31,90,16))
+		patRecButt = Button.new(win,Rect(420,31,90,16))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["record pattern", Color.black, Color.clear], 
 					["recording", Color.black, Color.red.alpha_(0.2)], 
@@ -534,7 +551,10 @@ TuningTheory {
 a = TuningTheory.new
 a.createGUI
 
+a.tuningtonic = 0 // c
+a.tuningtonic = 2 // d
 a.synth = \saw
+a.synth = \moog
 a.tuning = \just
 a.tuning = \et12
 
