@@ -1,11 +1,11 @@
 
 
-// NOTE the below might look strange, but it's important to separate MIDI info (key-tuningtonic) to key (for key-dependent tunings)
-// ratios[key-tuningtonic]*tuningtonic.midicps
+// NOTE the below might look strange, but it's important to separate MIDI info (key-tuningreference) to the ratios (for key-dependent tunings)
+// ratios[key-tuningreference]*tuningreference.midicps
 
 TuningTheory {
 
-	var gui, keybview, notes, group, ratios, tuningtonic, tonic, pitchBend;
+	var gui, keybview, notes, group, ratios, tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
 	var calcFreq;
 	var tuning, outbus;
@@ -16,7 +16,7 @@ TuningTheory {
 
 	initKeystation {
 		
-		tuningtonic = 0; // by default in C
+		tuningreference = 0; // by default in C
 		tonic = 60;
 		pitchBend = 1;
 		outbus = 0;
@@ -42,7 +42,7 @@ TuningTheory {
 		notes.copy.do({arg arraysynth, key;
 			if( arraysynth != nil , { 
 				arraysynth.release;
-				notes[key] = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+				notes[key] = Synth(synth, [\freq, this.calcFreq(key), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
 			});
 		});
 	}
@@ -62,39 +62,34 @@ TuningTheory {
 			if(temptuningratios.isNil, { temptuningratios = XiiScala.new(argtuning) }); // support of the Scala scales / tunings
 			tuningratios = temptuningratios.ratios;
 		});
-		[\tuningratios, tuningratios].postln;
-		
-		//tuningsize = tuningratios.size; // needed to know how many ratios there are in the tuning system
 		ratios = Array.fill(10, {|i| tuningratios*2.pow(i) }).flatten;
-
 		notes.do({arg synth, key;
-			if( synth != nil , { synth.set(\freq, ratios[key]*tuningtonic.midicps ) });
+			if( synth != nil , { synth.set(\freq, this.calcFreq(key) ) });
 		});
-		
 	}
 	
-	tuningtonic_ {arg ton; // this is in MIDI standard, so 0 is C, 1 is C#, 2 is D, etc. (A is 9)
-		tuningtonic = ton;	
+	tuningreference_ {arg ton; // this is in MIDI standard, so 0 is C, 1 is C#, 2 is D, etc. (A is 9)
+		tuningreference = ton;	
 	}
 
 	makeSynths {
-		
-			//First we create a synth definition for this example:
+		//First we create a synth definition for this example:
 		SynthDef(\moog, {arg freq=440, amp=1, gate=1, pitchBend=1, cutoff=20, vibrato=0;
 			var signal, env;
 			signal = LPF.ar(VarSaw.ar([freq, freq+2]*pitchBend+SinOsc.ar(vibrato, 0, 1, 1), 0, XLine.ar(0.7, 0.9, 0.13)), (cutoff * freq).min(18000));
 			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
 			Out.ar(0, signal*env);
 		}).add;
-
 		SynthDef(\saw, {arg freq=440, amp=1, gate=1, pitchBend=1, cutoff=20, vibrato=0;
 			var signal, env;
 			signal = LPF.ar(Saw.ar([freq, freq]*pitchBend, XLine.ar(0.7, 0.9, 0.13)), (cutoff * freq).min(18000));
 			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
 			Out.ar(0, signal*env);
 		}).add;
-
+	}
 	
+	calcFreq {arg key;
+		^ratios[key-tuningreference]*tuningreference.midicps;
 	}
 	
 	midiSetup {
@@ -102,20 +97,16 @@ TuningTheory {
 		notes = Array.fill(127, { nil });
 		group = Group.new; // we create a Group to be able to set cutoff of all active notes
 
-		calcFreq = {arg key; ratios[key-tuningtonic]*tuningtonic.midicps };
-		
 		MIDIdef.noteOn(\myOndef, {arg vel, key, channel, device;
-			
-			var freq = calcFreq.value(key);
 			// we use the key as index into the array as well
 			[\midi, key].postln;
-			[\ratio, ratios[key]*tuningtonic.midicps].postln;
+			[\ratio, ratios[key]].postln;
 			[\keymidicps, key.midicps].postln;
-			[\keymidicps, key.midicps].postln;
-			
-			notes[key] = Synth(synth, [\out, outbus, \freq, freq, \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
+			[\freq, this.calcFreq(key)].postln;
+			notes[key] = Synth(synth, [\out, outbus, \freq, this.calcFreq(key), \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
 			if(gui, {	 {keybview.keyDown(key)}.defer });
 		});
+
 		MIDIdef.noteOff(\myOffdef, {arg vel, key, channel, device;
 			notes[key].release;
 			notes[key] = nil;
@@ -134,7 +125,6 @@ TuningTheory {
 				if( synth != nil , { synth.set(\vibrato, val.linlin(0, 127, 1, 20) ) });
 			});
 		});
-	
 	}
 	
 	createGUI {
@@ -147,17 +137,6 @@ TuningTheory {
 		var bounds = Rect(20, 5, 1000, 222);
 		gui = true;
 		
-		
-								tuningtonic = 0; // by default in C
-								tonic = 60;
-								pitchBend = 1;
-								outbus = 0;
-								synthdefs = [\saw, \moog];
-								synth = synthdefs[0];
-		
-		gui = false; // no GUI by default
-
-		
 		playMode = true;
 		playmodeSC = "chord";
 		win = Window.new("- ixi pattern maker -", Rect(400, 400, bounds.width+20, bounds.height+10), resizable:false).front;
@@ -167,8 +146,8 @@ TuningTheory {
 					fString.string_(key.asString++"  :  "++key.midinotename);
 					if(playMode, {
 						key.postln;
-						[\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \tonic, tonic].postln;
-						mousesynth = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
+						[\freq, this.calcFreq(key), \tonic, tonic].postln;
+						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
 //							if(timerReadyFlag, { 
 //								timerReadyFlag = false;
 //								thistime = TempoClock.default.beats;
@@ -185,8 +164,8 @@ TuningTheory {
 
 					}, {
 						tonic = key; 
-						tuningtonic = tonic % 12; // this is the reference for non-et12 tempered scales
-						[\tuningtonic, tonic].postln;
+						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scales
+						[\tuningreference, tonic].postln;
 						
 						pitchCircle.drawSet(chord, tonic%12);
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));				scaleChordString.string_((tonic+chord).midinotename.asString);
@@ -199,7 +178,7 @@ TuningTheory {
 					if(playMode, {
 						key.postln;
 						//(note.midicps)*tuningratios.wrapAt(note-(tonic%12)).postln;
-						mousesynth = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
+						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
 //							if(timerReadyFlag, { 
 //								timerReadyFlag = false;
 //								thistime = TempoClock.default.beats;
@@ -412,7 +391,7 @@ TuningTheory {
 						chord.do({arg key;
 							{var a;
 							key = key + tonic;
-							a = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
+							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
 							0.35.wait;
 							a.release}.fork;
 							0.4.wait;
@@ -421,7 +400,7 @@ TuningTheory {
 						chord.do({arg key;
 							{var a;
 							key = key + tonic;
-							a = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
+							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
 							0.8.wait;
 							a.release}.fork;
 						});
@@ -430,7 +409,7 @@ TuningTheory {
 						tempchord.mirror.do({arg key;
 							{var a;
 							key = key + 48;
-							a = Synth(synth, [\freq, ratios[key-tuningtonic]*tuningtonic.midicps, \out, outbus]);
+							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
 							0.3.wait;
 							a.release}.fork;
 							0.3.wait;
@@ -558,8 +537,8 @@ TuningTheory {
 a = TuningTheory.new
 a.createGUI
 
-a.tuningtonic = 0 // c
-a.tuningtonic = 2 // d
+a.tuningreference = 0 // c
+a.tuningreference = 2 // d
 a.synth = \saw
 a.synth = \moog
 a.tuning = \just
