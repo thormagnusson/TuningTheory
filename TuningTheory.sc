@@ -5,9 +5,9 @@
 
 TuningTheory {
 
-	var gui, keybview, notes, group, ratios, tuningreference, tonic, pitchBend;
+	var win, gui, keybview, tuninggrid, notes, group, ratios, tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
-	var calcFreq;
+	var calcFreq, semitones;
 	var tuning, outbus;
 		
 	*new {
@@ -47,7 +47,7 @@ TuningTheory {
 		});
 	}
 					
-	tuning_ { | argtuning |
+	tuning_ { | argtuning, fromGUI=false |
 		var temptuningratios, tuningratios;
 		tuning = argtuning;
 		
@@ -57,11 +57,25 @@ TuningTheory {
 			}, {	// the array is in rational numbers (or floating point ratios)
 				tuningratios = tuning;
 			});
+			semitones = tuningratios.ratiomidi;
 		}, {
 			temptuningratios = Tuning.newFromKey(argtuning.asSymbol); 
 			if(temptuningratios.isNil, { temptuningratios = XiiScala.new(argtuning) }); // support of the Scala scales / tunings
 			tuningratios = temptuningratios.ratios;
+			semitones = temptuningratios.semitones;
 		});
+		[\tuningRATIOS, tuningratios].postln;
+		if(fromGUI.not && gui, { 
+			try{ 
+		tuninggrid.remove;
+		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 790, 120), columns: semitones, rows: 6, border:true);
+		tuninggrid.setBackgrColor_(Color.white);
+		tuninggrid.setBorder_(true);
+			//tuninggrid.calculateDrawing(semitones)
+			} 
+		});
+		[\semitones, semitones].postln;
+		
 		ratios = Array.fill(10, {|i| tuningratios*2.pow(i) }).flatten;
 		notes.do({arg synth, key;
 			if( synth != nil , { synth.set(\freq, this.calcFreq(key) ) });
@@ -129,14 +143,15 @@ TuningTheory {
 	
 	createGUI {
 		
-		var win, midiclientmenu, synthdefmenu, outbusmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
+		var midiclientmenu, synthdefmenu, outbusmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
 		var chordmenu, scalemenu, play, patRecButt, mousesynth;
 		var chords, scales, tunings, chordnames, chord, scalenames, scale;
-		var playMode, playmodeSC;
-		
-		var bounds = Rect(20, 5, 1000, 222);
+		var playMode, playmodeSC;				
+
+		var bounds = Rect(20, 5, 1000, 360);
 		gui = true;
 		
+
 		playMode = true;
 		playmodeSC = "chord";
 		win = Window.new("- ixi pattern maker -", Rect(400, 400, bounds.width+20, bounds.height+10), resizable:false).front;
@@ -223,6 +238,9 @@ TuningTheory {
 					});
 				});
 		
+		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 790, 120), columns: Tuning.et12.semitones, rows: 6, border:true);
+		tuninggrid.setBackgrColor_(Color.white);
+		tuninggrid.setBorder_(true);
 		
 		midiclientmenu = PopUpMenu.new(win,Rect(10,5,150,16))
 				.font_(Font.new("Helvetica", 9))
@@ -354,6 +372,8 @@ TuningTheory {
 					//tuning = tunings[item.value][1];
 					tuning = tunings[item.value][0].asSymbol;
 					this.tuning_(tuning);
+					[\tuning, tuning].postln;
+					tuninggrid.calculateDrawing(semitones);
 					//tuningratios = (tuning-ratiosET) + 1;
 					//tuningratios.postln;
 					"Selectec tuning : ".post; tuning.postln;
@@ -559,7 +579,10 @@ a.tuning = \ellis
 a.tuning = \bohlen_12
 a.tuning = \biggulp
 a.tuning = \bailey_well
-
+a.tuning = \arch_dor
+a.tuning = \breed
+a.tuning = \burt20
+a.tuning = \cairo // ah! the problem is that I need to use the octaveRatio instead of 12 in drawing
 
 
 
