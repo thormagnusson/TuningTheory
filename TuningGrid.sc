@@ -120,13 +120,35 @@ TuningGrid {
 						Rect(0, 0, bounds.width+1, bounds.height+1))
 				});
 
-			columnratios.do({arg i;
+
+			// the column lines
+			columnratios.do({arg ratio;
 				pen.line(
-					Point((bounds.width/(columns+1))+(i*(bounds.width/(columns+1))), 0).round(1)+0.5, 
-					Point((bounds.width/(columns+1))+(i*(bounds.width/(columns+1))), bounds.height).round(1)+0.5
+					Point(ratio * (bounds.width/12), 0).round(1)+0.5, 
+					Point(ratio * (bounds.width/12), bounds.height).round(1)+0.5
 				);
+
+// working
+//				pen.line(
+//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), 0).round(1)+0.5, 
+//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), bounds.height).round(1)+0.5
+//				);
+
+//				pen.line(
+//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), 0).round(1)+0.5, 
+//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), bounds.height).round(1)+0.5
+//				);
+//				pen.line(
+//					Point(ratio*(bounds.width/(columnratios.sum/columnratios.size*2)), 0).round(1)+0.5, 
+//					Point(ratio*(bounds.width/(columnratios.sum/columnratios.size*2)), bounds.height).round(1)+0.5
+//				);
+//				pen.line(
+//					Point((bounds.width/(columns+1))+(ratio*(bounds.width/(columns+1))), 0).round(1)+0.5, 
+//					Point((bounds.width/(columns+1))+(ratio*(bounds.width/(columns+1))), bounds.height).round(1)+0.5
+//				);
 			});
 			
+			// the row lines
 			rows.do({arg i;
 				pen.line(
 					Point(0, 
@@ -136,7 +158,7 @@ TuningGrid {
 				);
 			});
 			pen.stroke;
-	\dev22.postln;		
+
 			gridNodes.do({arg row;
 				row.do({arg node; 
 					if(node.state == true, {
@@ -178,7 +200,7 @@ TuningGrid {
 
 	}
 	
-	calculateDrawing {arg columnrat;
+	calculateDrawing {arg columnrat; // just the points
 		var rect, p;
 		columnratios = columnrat;
 		columnratios.do({arg ratio, c;
@@ -188,9 +210,14 @@ TuningGrid {
 					(bounds.width/(columns+1))+(c*(bounds.width/(columns+1))),
 					(bounds.height/(rows+1))+(r*(bounds.height/(rows+1)))				).round(1);	
 				*/
+
 				p = Point(
-					(bounds.width/(columns+1))+(ratio*(bounds.width/(columns+1))),
+					ratio * (bounds.width/12),
 					(bounds.height/(rows+1))+(r*(bounds.height/(rows+1)))				).round(1);	
+				
+//				p = Point(
+//					(bounds.width/(columns+1))+(ratio*(bounds.width/(columns+1))),
+//					(bounds.height/(rows+1))+(r*(bounds.height/(rows+1)))				).round(1);	
 					
 				/*
 				rect = Rect(	p.x - ((bounds.width/(columns+1)/2)), 
@@ -199,10 +226,16 @@ TuningGrid {
 							(bounds.height/(rows+1)));
 				*/
 				
-				rect = Rect(((ratio*(bounds.width/columns))).round(1), 
-							((r*(bounds.height/rows))).round(1), 
-							(bounds.width/columns).round(1), 
-							(bounds.height/rows).round(1)
+//				rect = Rect(((ratio * (bounds.width/12)-((bounds.width/12)))).round(1), 
+//							((r*(bounds.height/rows))).round(1), 
+//							(bounds.width/columns).round(1), 
+//							(bounds.height/rows).round(1)
+//						);
+
+				rect = Rect(((ratio * (bounds.width/12))-20).round(1), 
+							((r*(bounds.height/rows))-10).round(1), 
+							30, 
+							20
 						);
 
 				gridNodes[r][c] = TuningGridNode.new(p, rect, c, r, fillcolor);

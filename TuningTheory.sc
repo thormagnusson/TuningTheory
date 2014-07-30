@@ -5,9 +5,9 @@
 
 TuningTheory {
 
-	var win, gui, keybview, tuninggrid, notes, group, ratios, tuningreference, tonic, pitchBend;
+	var win, gui, keybview, tuninggrid, notes, gridnotes, group, ratios, tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
-	var calcFreq, semitones;
+	var calcFreq, semitones, nodestates;
 	var tuning, outbus;
 		
 	*new {
@@ -45,9 +45,15 @@ TuningTheory {
 				notes[key] = Synth(synth, [\freq, this.calcFreq(key), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
 			});
 		});
+		gridnotes.copy.do({arg arraysynth, key;
+			if( arraysynth != nil , { 
+				arraysynth.release;
+				gridnotes[key] = Synth(synth, [\freq, this.calcFreq(key), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+			});
+		});
 	}
 					
-	tuning_ { | argtuning, fromGUI=false |
+	tuning_ { | argtuning |
 		var temptuningratios, tuningratios;
 		tuning = argtuning;
 		
@@ -65,15 +71,17 @@ TuningTheory {
 			semitones = temptuningratios.semitones;
 		});
 		[\tuningRATIOS, tuningratios].postln;
-		if(fromGUI.not && gui, { 
-			try{ 
-		tuninggrid.remove;
-		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 790, 120), columns: semitones, rows: 6, border:true);
-		tuninggrid.setBackgrColor_(Color.white);
-		tuninggrid.setBorder_(true);
-			//tuninggrid.calculateDrawing(semitones)
-			} 
-		});
+		if(gui, { this.createTuningGrid( semitones ) });
+
+//		if(fromGUI.not && gui, { 
+//			try{ 
+//		tuninggrid.remove;
+//		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 790, 120), columns: semitones, rows: 6, border:true);
+//		tuninggrid.setBackgrColor_(Color.white);
+//		tuninggrid.setBorder_(true);
+//			//tuninggrid.calculateDrawing(semitones)
+//			} 
+//		});
 		[\semitones, semitones].postln;
 		
 		ratios = Array.fill(10, {|i| tuningratios*2.pow(i) }).flatten;
@@ -88,13 +96,13 @@ TuningTheory {
 
 	makeSynths {
 		//First we create a synth definition for this example:
-		SynthDef(\moog, {arg freq=440, amp=1, gate=1, pitchBend=1, cutoff=20, vibrato=0;
+		SynthDef(\moog, {arg freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
 			var signal, env;
 			signal = LPF.ar(VarSaw.ar([freq, freq+2]*pitchBend+SinOsc.ar(vibrato, 0, 1, 1), 0, XLine.ar(0.7, 0.9, 0.13)), (cutoff * freq).min(18000));
 			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
 			Out.ar(0, signal*env);
 		}).add;
-		SynthDef(\saw, {arg freq=440, amp=1, gate=1, pitchBend=1, cutoff=20, vibrato=0;
+		SynthDef(\saw, {arg freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
 			var signal, env;
 			signal = LPF.ar(Saw.ar([freq, freq]*pitchBend, XLine.ar(0.7, 0.9, 0.13)), (cutoff * freq).min(18000));
 			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
@@ -103,12 +111,16 @@ TuningTheory {
 	}
 	
 	calcFreq {arg key;
+		[\key, key].postln;
+		[\freq, ratios[key-tuningreference]*tuningreference.midicps].postln;
 		^ratios[key-tuningreference]*tuningreference.midicps;
 	}
 	
 	midiSetup {
 				
 		notes = Array.fill(127, { nil });
+		nodestates = {{0}!12}!6;
+		gridnotes = Array.fill(12*6, { nil });
 		group = Group.new; // we create a Group to be able to set cutoff of all active notes
 
 		MIDIdef.noteOn(\myOndef, {arg vel, key, channel, device;
@@ -141,6 +153,48 @@ TuningTheory {
 		});
 	}
 	
+	createTuningGrid {arg semitones;
+		//var nodestates;
+		//	try{ 
+			[\nodestates, nodestates].postln;
+		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 790, 120), columns: semitones, rows: 6, border:true);
+		tuninggrid.setBackgrColor_(Color.white);
+		tuninggrid.setBorder_(true);
+		tuninggrid.setTrailDrag_(true, true);
+		tuninggrid.setFillMode_(true);
+		tuninggrid.setFillColor_(Color.white);
+		tuninggrid.setNodeStates_(nodestates);
+		tuninggrid.nodeDownAction_({arg nodeloc;
+			var note = (nodeloc[0]+((nodeloc[1]-6).abs*12))+24+tuningreference;
+			[\nodeloc, nodeloc].postln; 
+			[\note, note].postln;
+			if(tuninggrid.getState(nodeloc[0], nodeloc[1]) == 1, {
+				\ON.postln;
+				notes[note] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend])
+			}, {
+				\OFF.postln;
+				notes[note].release;
+				notes[note] = nil;
+			});
+		});
+		tuninggrid.nodeTrackAction_({arg nodeloc;
+			var note = (nodeloc[0]+((nodeloc[1]-6).abs*12))+24+tuningreference;
+			[\nodeloc, nodeloc].postln; 
+			[\note, note].postln;
+			if(tuninggrid.getState(nodeloc[0], nodeloc[1]) == 1, {
+				\ON.postln;
+				if(notes[note].isNil, {
+					notes[note] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
+				});
+			}, {
+				\OFF.postln;
+				notes[note].release;	
+				notes[note] = nil;
+			});
+		});
+		//	}
+	}
+	
 	createGUI {
 		
 		var midiclientmenu, synthdefmenu, outbusmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
@@ -162,7 +216,7 @@ TuningTheory {
 					if(playMode, {
 						key.postln;
 						[\freq, this.calcFreq(key), \tonic, tonic].postln;
-						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
+						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 //							if(timerReadyFlag, { 
 //								timerReadyFlag = false;
 //								thistime = TempoClock.default.beats;
@@ -193,7 +247,7 @@ TuningTheory {
 					if(playMode, {
 						key.postln;
 						//(note.midicps)*tuningratios.wrapAt(note-(tonic%12)).postln;
-						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
+						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 //							if(timerReadyFlag, { 
 //								timerReadyFlag = false;
 //								thistime = TempoClock.default.beats;
@@ -238,10 +292,8 @@ TuningTheory {
 					});
 				});
 		
-		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 790, 120), columns: Tuning.et12.semitones, rows: 6, border:true);
-		tuninggrid.setBackgrColor_(Color.white);
-		tuninggrid.setBorder_(true);
-		
+		this.createTuningGrid(semitones);		
+
 		midiclientmenu = PopUpMenu.new(win,Rect(10,5,150,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(MIDIClient.sources.collect({arg item; item.device + item.name}))
@@ -371,9 +423,11 @@ TuningTheory {
 				.action_({arg item;
 					//tuning = tunings[item.value][1];
 					tuning = tunings[item.value][0].asSymbol;
+					nodestates = tuninggrid.getNodeStates;
+					[\nodestates____, nodestates].postln;
+					tuninggrid.calculateDrawing(semitones);
 					this.tuning_(tuning);
 					[\tuning, tuning].postln;
-					tuninggrid.calculateDrawing(semitones);
 					//tuningratios = (tuning-ratiosET) + 1;
 					//tuningratios.postln;
 					"Selectec tuning : ".post; tuning.postln;
@@ -411,7 +465,7 @@ TuningTheory {
 						chord.do({arg key;
 							{var a;
 							key = key + tonic;
-							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
+							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 							0.35.wait;
 							a.release}.fork;
 							0.4.wait;
@@ -420,7 +474,7 @@ TuningTheory {
 						chord.do({arg key;
 							{var a;
 							key = key + tonic;
-							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
+							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 							0.8.wait;
 							a.release}.fork;
 						});
@@ -429,7 +483,7 @@ TuningTheory {
 						tempchord.mirror.do({arg key;
 							{var a;
 							key = key + 48;
-							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus]);
+							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 							0.3.wait;
 							a.release}.fork;
 							0.3.wait;
