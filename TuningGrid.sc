@@ -232,9 +232,9 @@ TuningGrid {
 //							(bounds.height/rows).round(1)
 //						);
 
-				rect = Rect(((ratio * (bounds.width/12))-20).round(1), 
+				rect = Rect(((ratio * (bounds.width/12))-10).round(1), 
 							((r*(bounds.height/rows))-10).round(1), 
-							30, 
+							20, 
 							20
 						);
 

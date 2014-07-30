@@ -71,7 +71,11 @@ TuningTheory {
 			semitones = temptuningratios.semitones;
 		});
 		[\tuningRATIOS, tuningratios].postln;
-		if(gui, { this.createTuningGrid( semitones ) });
+		if(gui, { 
+			nodestates = tuninggrid.getNodeStates;
+			this.createTuningGrid( semitones );
+			tuninggrid.setNodeStates_( nodestates );
+		});
 
 //		if(fromGUI.not && gui, { 
 //			try{ 
@@ -423,10 +427,11 @@ TuningTheory {
 				.action_({arg item;
 					//tuning = tunings[item.value][1];
 					tuning = tunings[item.value][0].asSymbol;
-					nodestates = tuninggrid.getNodeStates;
+					//nodestates = tuninggrid.getNodeStates;
 					[\nodestates____, nodestates].postln;
-					tuninggrid.calculateDrawing(semitones);
 					this.tuning_(tuning);
+					//tuninggrid.calculateDrawing(semitones);
+					//tuninggrid.setNodeStates_(nodestates);
 					[\tuning, tuning].postln;
 					//tuningratios = (tuning-ratiosET) + 1;
 					//tuningratios.postln;
