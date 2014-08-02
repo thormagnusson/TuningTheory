@@ -47,7 +47,7 @@ XiiTuningPitchCircle {
 		label = set;
 		labelAlign = \center;
 		labelSize = txtH * 0.4; // radius* 0.1;
-		compView = CompositeView.new(win, Rect(810, 50, size, size +txtH));
+		compView = CompositeView.new(win, Rect(1010, 50, size, size +txtH));
 		text = StaticText(compView, Rect(0, 0, size, txtH))
 				.align_(labelAlign)
 				.font_(Font("Helvetica", labelSize))
