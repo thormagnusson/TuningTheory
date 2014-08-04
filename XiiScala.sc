@@ -43,6 +43,7 @@ XiiScala : Tuning {
 			if(line.isNil.not, { if(line.contains("!").not, { lines = lines.add(line) }) });
 		});
 		file.close;
+		[\lines, lines].postln;
 		
 		name = lines.removeAt(0);
 		name = name.asString; // the first line will the the name

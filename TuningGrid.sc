@@ -2,7 +2,7 @@
 TuningGrid {
 
 	var <>gridNodes; 
-	var tracknode, chosennode, mouseTracker, columnratios;
+	var tracknode, chosennode, mouseTracker, columnsemitones;
 	var win, bounds;
 	var downAction, upAction, trackAction, backgrDrawFunc;
 	var border, background;
@@ -35,11 +35,11 @@ TuningGrid {
 		tracknode = 0;
 		border = argborder;
 		if(argcolumns.isArray, {
-			columnratios = argcolumns;
-			columns = columnratios.size;
+			columnsemitones = argcolumns;
+			columns = columnsemitones.size;
 		}, {
 			columns = argcolumns ? 8;
-			columnratios = {1}!columns;
+			columnsemitones = {1}!columns;
 		});
 	
 		rows = argrows ? 12;
@@ -58,7 +58,7 @@ TuningGrid {
 
 		pen	= GUI.pen;
 
-		this.calculateDrawing(columnratios);
+		this.calculateDrawing(columnsemitones);
 					
 		mouseTracker
 			.canFocus_(false)
@@ -122,10 +122,11 @@ TuningGrid {
 
 
 			// the column lines
-			columnratios.do({arg ratio;
-				pen.line(
-					Point(ratio * (bounds.width/12), 0).round(1)+0.5, 
-					Point(ratio * (bounds.width/12), bounds.height).round(1)+0.5
+			columnsemitones.do({arg semitone;
+				[\semitone, semitone].postln;
+				pen.line( // keep 12 in there (not semitones.size) as SC calculates semitones to 12
+					Point(semitone * (bounds.width/12), 0).round(1)+0.5, 
+					Point(semitone * (bounds.width/12), bounds.height).round(1)+0.5
 				);
 
 // working
@@ -200,10 +201,10 @@ TuningGrid {
 
 	}
 	
-	calculateDrawing {arg columnrat; // just the points
+	calculateDrawing {arg columnsemi; // just the points
 		var rect, p;
-		columnratios = columnrat;
-		columnratios.do({arg ratio, c;
+		columnsemitones = columnsemi;
+		columnsemitones.do({arg ratio, c;
 			rows.do({arg r;
 				/*
 				p = Point(
@@ -233,10 +234,15 @@ TuningGrid {
 //						);
 
 				rect = Rect(((ratio * (bounds.width/12))-10).round(1), 
-							((r*(bounds.height/rows))-10).round(1), 
+							((r*(bounds.height/rows))).round(1), 
 							20, 
-							20
+							25
 						);
+//				rect = Rect(((c*(bounds.width/columns))).round(1), 
+//							((r*(bounds.height/rows))).round(1), 
+//							(bounds.width/columns).round(1), 
+//							(bounds.height/rows).round(1)
+//						);
 
 				gridNodes[r][c] = TuningGridNode.new(p, rect, c, r, fillcolor);
 			});

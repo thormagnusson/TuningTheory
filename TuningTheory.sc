@@ -1,5 +1,5 @@
 
-Ö
+
 // NOTE the below might look strange, but it's important to separate MIDI info (key-tuningreference) to the ratios (for key-dependent tunings)
 // ratios[key-tuningreference]*tuningreference.midicps
 
@@ -7,8 +7,8 @@ TuningTheory {
 
 	var win, gui, keybview, tuninggrid, notes, gridnotes, group, tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
-	var calcFreq, semitones, nodestates;
-	var tuning, outbus;
+	var calcFreq, semitones, nodestates, drawRatiosArray;
+	var tuning, outbus, chordArray;
 		
 	*new {
 		^super.new.initKeystation;
@@ -22,6 +22,7 @@ TuningTheory {
 		outbus = 0;
 		synthdefs = [\saw, \moog];
 		synth = synthdefs[0];
+		chordArray = []; // current notes
 		
 		gui = false; // no GUI by default
 
@@ -47,13 +48,29 @@ TuningTheory {
 		MIDIdef.noteOn(\myOndef, {arg vel, key, channel, device;
 			// we use the key as index into the array as well
 			notes[key] = Synth(synth, [\out, outbus, \freq, this.calcFreq(key), \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
-			if(gui, {	 {keybview.keyDown(key)}.defer });
+			chordArray = chordArray.add(key%12).sort;
+			
+			block{|break| XiiTheory.chords.do({arg chord; if(chord[1] == chordArray, {
+				"Current Chord is : ".post; chord[0].postln;
+				chord[1].postln;
+				break.value();
+				})}); };
+				
+			[\chordArray, chordArray].postln;
+			if(gui, {	 {
+				keybview.keyDown(key);
+				this.setGridNode(key, 1);
+				}.defer });
 		});
 
 		MIDIdef.noteOff(\myOffdef, {arg vel, key, channel, device;
 			notes[key].release;
 			notes[key] = nil;
-			if(gui, {	 {keybview.keyUp(key)}.defer });
+			chordArray.remove(key%12);
+			if( gui, { { 
+				keybview.keyUp( key );
+				this.setGridNode(key, 0);
+				}.defer });
 		});
 
 		MIDIdef.cc(\myPitchBend, { arg val;
@@ -86,38 +103,40 @@ TuningTheory {
 
 	makeSynths {
 		//First we create a synth definition for this example:
-		SynthDef(\moog, {arg freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
+		SynthDef(\moog, {arg out=0, freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
 			var signal, env;
 			signal = LPF.ar(VarSaw.ar([freq, freq+2]*pitchBend+SinOsc.ar(vibrato, 0, 1, 1), 0, XLine.ar(0.7, 0.9, 0.13)), (cutoff * freq).min(18000));
 			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
-			Out.ar(0, signal*env);
+			Out.ar(out, signal*env);
 		}).add;
-		SynthDef(\saw, {arg freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
+		SynthDef(\saw, {arg out=0, freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
 			var signal, env;
 			signal = LPF.ar(Saw.ar([freq, freq]*pitchBend, XLine.ar(0.7, 0.9, 0.13)), (cutoff * freq).min(18000));
 			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
-			Out.ar(0, signal*env);
+			Out.ar(out, signal*env);
 		}).add;
 	}
 	
 	synth_ {arg stype;
-		var keycounter = 36; /// XXX + tuningreference?
+		var keycounter = 36;
 		synth = stype;
 		notes.copy.do({arg arraysynth, key;
 			if( arraysynth != nil , { 
 				arraysynth.release;
-				notes[key] = Synth(synth, [\freq, this.calcFreq(key), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+				notes[key] = Synth(synth, [\freq, this.calcFreq( key ), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
 			});
 		});
+	// XXX needs fixing
 		gridnotes.copy.reverse.do({arg array, i;
 			array.do({arg arraysynth, j;
 				if( arraysynth != nil , { 
 					arraysynth.release;
-					gridnotes[i][j] = Synth(synth, [\freq, this.calcFreq(keycounter), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+					gridnotes[i][j] = Synth(synth, [\freq, this.calcFreq( keycounter ), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
 				});
 				keycounter = keycounter + 1;
 			});
 		});
+
 	}
 	
 	postLists {
@@ -148,7 +167,7 @@ TuningTheory {
 		});
 		
 		//semitones = semitones ++ (semitones+12); // I need an extra octave of semitones, as tuningreference can go up 11 halftones
-		keycounter = semitones.size*3; // third octave up
+//		keycounter = semitones.size*3; // third octave up
 		keycounter = 36; // third octave up
 		
 		// keyboard notes
@@ -160,8 +179,8 @@ TuningTheory {
 			nodestates = tuninggrid.getNodeStates;
 			this.createTuningGrid( semitones );
 			//tuninggrid.setNodeStates_( nodestates );
-			[\semitones___________________, semitones].postln;
-			[\nodestates___________________, nodestates].postln;
+		//	[\semitones___________________, semitones].postln;
+		//	[\nodestates___________________, nodestates].postln;
 			// notegrid notes
 //			gridnotes.reverse.do({arg array;
 //				array.do({arg synth;
@@ -178,65 +197,32 @@ TuningTheory {
 				});				
 			});
 		});
-//			var note = (nodeloc[0]+((nodeloc[1]-6).abs*semitones.size))+(semitones.size*2)+tuningreference;
-//			[\nodeloc, nodeloc].postln; 
-//			[\note, note].postln;
-//			if(tuninggrid.getState(nodeloc[0], nodeloc[1]) == 1, {
-//				gridnotes[nodeloc[1]][nodeloc[0]].postln;
-//				gridnotes.postln;
-//				gridnotes[nodeloc[1]][nodeloc[0]] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
-//			}, {
-//				gridnotes[nodeloc[1]][nodeloc[0]].release;
-//				gridnotes[nodeloc[1]][nodeloc[0]] = nil;
-//			});
 	}
 		
 	calcFreq {arg note;
-//		[\key, key].postln;
-//		// [\ratios, ratios].postln;
-//		[\keyMINUStuningref, key-tuningreference].postln;
-//		[\tuningREFMIDI, tuningreference.midicps].postln;
-//		//[\freq, ratios[key-tuningreference]*tuningreference.midicps].postln;
-//		\_________________________________________________.postln;
-		[\Semitones, semitones].postln;
-[\note, note].postln;
-//		\____________________.postln;
-//		[\Semitone, semitones[key%semitones.size]].postln;
-//		[\SemitonesMIDICPS, semitones[key%semitones.size].midicps].postln;
-//		[\octaveMultiplier,[1,2,4,8,16,32,64,128,256,512].at(key.div(semitones.size))].postln;
-//		[\freq, semitones[key%semitones.size].midicps * [1,2,4,8,16,32,64,128,256,512].at(key.div(semitones.size))].postln;
-//		\OOO.postln;
+		\_________________________________________________.postln;
+	//	[\Semitones, semitones].postln;
+	//	[\note, note].postln;
+	//	[\tuningreference, tuningreference].postln;
+	//	[\semitone, (semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size]].postln; // this is CORRECT !!!
+	//	[\freq, ((semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size] + tuningreference).midicps].postln;
 	
-		[\tuningreference, tuningreference].postln;
-	//	^semitones[note%semitones.size].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
-//		^(semitones+tuningreference)[(note%semitones.size)].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
-//		^semitones[(note%semitones.size)+tuningreference].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
-//		^(semitones++(semitones+12))[(note%semitones.size)+tuningreference].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
+//		^semitones[(note%semitones.size)].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
 
-	[\semitone, ((semitones++(semitones+12))[(note%semitones.size)-tuningreference])].postln;
-	
-	
-	[\semitone, (semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size]].postln; // this is CORRECT !!!
-
-	[\freq, ((semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size] + tuningreference).midicps].postln;
-	
 		^((semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size]+tuningreference).midicps * [1,2,4,8,16,32,64,128,256,512].at((note-tuningreference).div(semitones.size));
-//		^((semitones++semitones)[(note%semitones.size)+(semitones.size-tuningreference)]+tuningreference).midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
 
-//		^semitones[(note%semitones.size)].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
-//		^semitones[(note%semitones.size)].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
 	}
 
 	createTuningGrid {arg semitones;
-		// increasing in size
+		// grid increasing in size
 		if(nodestates[0].size < semitones.size, {
 			nodestates = nodestates.collect({arg array;
 				array ++ ({0}!(semitones.size-nodestates.size))
 			});
 			gridnotes = gridnotes.collect({arg array;
-				array ++ ({0}!(semitones.size-nodestates.size))
+				array ++ ({nil}!(semitones.size-nodestates.size))
 			});
-		}, { // decreasing in size
+		}, { // grid decreasing in size
 			nodestates = nodestates.collect({ arg array;
 				array[0 .. semitones.size];
 			});
@@ -254,6 +240,18 @@ TuningTheory {
 		tuninggrid.setFillMode_(true);
 		tuninggrid.setFillColor_(Color.white);
 		tuninggrid.setNodeStates_(nodestates);
+		tuninggrid.setBackgrDrawFunc_({ // drawing harmonics
+//			Pen.color = Color.green(0.75);
+//			drawRatiosArray.do({arg ratio;
+//				Pen.line(Point((ratio-1)*990, 0), Point((ratio-1)*990, 300));
+//			});
+//			Pen.stroke;
+			Pen.color = Color.red(0.75);
+			drawRatiosArray.do({arg ratio;
+				Pen.line(Point((ratio.ratiomidi * (990/12)).round(1)+0.5, 0), Point((ratio.ratiomidi * (990/12)).round(1)+0.5, 300));
+			});
+			Pen.stroke;
+		});
 		tuninggrid.nodeDownAction_({arg nodeloc;
 			var note = (nodeloc[0]+((nodeloc[1]-6).abs*semitones.size))+(semitones.size*2)+tuningreference;
 //			[\nodeloc, nodeloc].postln; 
@@ -261,7 +259,9 @@ TuningTheory {
 			if(tuninggrid.getState(nodeloc[0], nodeloc[1]) == 1, {
 //				[\currentNODE, gridnotes[nodeloc[1]][nodeloc[0]]].postln;
 				gridnotes.postln;
-				gridnotes[nodeloc[1]][nodeloc[0]] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
+				if(gridnotes[nodeloc[1]][nodeloc[0]].isNil, {
+					gridnotes[nodeloc[1]][nodeloc[0]] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
+				});
 			}, {
 				gridnotes[nodeloc[1]][nodeloc[0]].release;
 				gridnotes[nodeloc[1]][nodeloc[0]] = nil;
@@ -270,28 +270,54 @@ TuningTheory {
 		tuninggrid.nodeTrackAction_({arg nodeloc;
 			var note = (nodeloc[0]+((nodeloc[1]-6).abs*semitones.size))+(semitones.size*2)+tuningreference;
 			if(tuninggrid.getState(nodeloc[0], nodeloc[1]) == 1, {
-				gridnotes[nodeloc[1]][nodeloc[0]] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
+				if(gridnotes[nodeloc[1]][nodeloc[0]].isNil, {
+					gridnotes[nodeloc[1]][nodeloc[0]] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
+				});
 			}, {
 				gridnotes[nodeloc[1]][nodeloc[0]].release;
 				gridnotes[nodeloc[1]][nodeloc[0]] = nil;
 			});
 		});
 	}
+
+	setGridNode {arg argnote, state=1;
+		var node, note, offset;
+		offset = 24; // should this be called keycounter?
+		note = argnote-offset;
+		node = [note%semitones.size, (note.div(semitones.size)-6).abs];
+		[\node, node].postln;
+		tuninggrid.setState_(note%semitones.size, (note.div(semitones.size)-6).abs, state)
+	}
+	
+	test {arg note, state;
+		this.setGridNode(note, state);	
+	}
+	
+	
+	drawRatios {arg array;
+		drawRatiosArray = array;
+		tuninggrid.refresh;
+	}
+
+	setRatios {arg array;
+		this.tuning_(array);
+	}
 	
 	createGUI {
 		
-		var midiclientmenu, synthdefmenu, outbusmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
+		var midiclientmenu, synthdefmenu, outbusmenu, tuningmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
 		var chordmenu, scalemenu, play, patRecButt, mousesynth;
 		var chords, scales, tunings, chordnames, chord, scalenames, scale;
-		var playMode, playmodeSC;				
+		var playMode, playmodeSC, lastkey;
 
 		var bounds = Rect(20, 5, 1200, 360);
 		gui = true;
 		
-
+		drawRatiosArray = [];
+		lastkey = 60;
 		playMode = true;
 		playmodeSC = "chord";
-		win = Window.new("- ixi pattern maker -", Rect(100, 400, bounds.width+20, bounds.height+10), resizable:false).front;
+		win = Window.new("- ixi tuning theory -", Rect(100, 400, bounds.width+20, bounds.height+10), resizable:false).front;
 		
 		keybview = MIDIKeyboard.new(win, Rect(10, 60, 990, 160), 5, 36)
 				.keyDownAction_({arg key; 
@@ -299,6 +325,8 @@ TuningTheory {
 					if(playMode, {
 						key.postln;
 						[\freq, this.calcFreq(key), \tonic, tonic].postln;
+						this.setGridNode(key, 1);
+
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 //							if(timerReadyFlag, { 
 //								timerReadyFlag = false;
@@ -329,6 +357,9 @@ TuningTheory {
 					mousesynth.set(\gate, 0);
 					if(playMode, {
 						key.postln;
+						this.setGridNode(lastkey, 0);
+						this.setGridNode(key, 1);
+						lastkey = key;
 						//(note.midicps)*tuningratios.wrapAt(note-(tonic%12)).postln;
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 //							if(timerReadyFlag, { 
@@ -352,6 +383,7 @@ TuningTheory {
 				.keyUpAction_({arg key; 
 					var downtime;
 					mousesynth.set(\gate, 0); 
+					this.setGridNode(key, 0);
 					//fString.string_(key.asString++"  :  "++key.midinotename);
 					if(playMode, {
 //							if(noteRecFlag, {
@@ -499,7 +531,7 @@ TuningTheory {
 				});
 		
 		
-		PopUpMenu.new(win,Rect(300,31,100,16))
+		tuningmenu = PopUpMenu.new(win,Rect(300,31,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(tunings.collect({arg tuning; tuning[0]}))
 				.background_(Color.white)
@@ -578,10 +610,88 @@ TuningTheory {
 		
 		patRecButt = Button.new(win,Rect(420,31,90,16))
 			.font_(Font.new("Helvetica", 9))
-			.states_([["record pattern", Color.black, Color.clear], 
-					["recording", Color.black, Color.red.alpha_(0.2)], 
-					["playing pattern", Color.black, Color.green.alpha_(0.2)]])
+			.states_([["create tuning", Color.black, Color.clear]])
+//			.states_([["record pattern", Color.black, Color.clear], 
+//					["recording", Color.black, Color.red.alpha_(0.2)], 
+//					["playing pattern", Color.black, Color.green.alpha_(0.2)]])
 			.action_({arg butt;
+				var scalewin, scaletext, scaletrybutt, scalesavebutt;
+				scalewin = Window.new("scala scale", Rect(10, 10, 600, 400)).front;
+				scaletext= TextView.new(scalewin, Rect(10, 10, 580, 350));
+				scaletrybutt = Button.new(scalewin, Rect(360, 370, 100, 20))
+								.states_([["Try Scale", Color.black, Color.clear]])
+								.action_({
+									// XXX need to allow for testing scales before saving
+									var scalefile, scalename;
+//									scalename = scaletext.string[2..scaletext.string.find(".scl")-1];
+//									[\scalename, scalename].postln;
+									scalefile = File(Platform.userAppSupportDir+/+"scl_user/_temp.scl", "w");
+									scalefile.write(scaletext.string);
+									scalefile.close;
+									this.tuning_(\_temp);
+									tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) ++ [\_temp] )
+								});
+				scalesavebutt = Button.new(scalewin, Rect(480, 370, 100, 20))
+								.states_([["Save Scale", Color.black, Color.clear]])
+								.action_({
+									var scalefile, scalename;
+									scalename = scaletext.string[2..scaletext.string.find(".scl")-1];
+									[\scalename, scalename].postln;
+									scalefile = File(Platform.userAppSupportDir+/+"scl_user/"+scalename++".scl", "w");
+									scalefile.write(scaletext.string);
+									scalefile.close;
+									tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) ++ [scalename.asSymbol] )
+								});
+				
+//				scaletext.string = "! _temp.scl
+//!
+//Description of the _temp scale (args: num of steps, then second degree, up until the octave)
+//12
+//!
+//567/512
+//9/8
+//147/128
+//21/16
+//1323/1024
+//189/128
+//3/2
+//49/32
+//7/4
+//441/256
+//63/32
+//2/1
+//";
+
+				scaletext.string = "! _temp.scl
+!
+Description of the _temp scale (args: num of steps, then second degree, up until the octave)
+22
+!
+256/243
+16/15
+10/9
+9/8
+32/27
+6/5
+5/4
+81/64
+4/3
+27/20
+45/32
+729/512
+3/2
+128/81
+8/5
+5/3
+27/16
+16/9
+9/5
+15/8
+243/128
+2/1
+";
+
+				
 //				switch(butt.value)
 //				{0}{"STANDBY".postln;
 //						pattern.stop;
@@ -655,6 +765,30 @@ TuningTheory {
 //		
 //					};
 			});
+		
+		Button.new(win,Rect(1010,305,90,16))
+			.font_(Font.new("Helvetica", 9))
+			.states_([["draw ratios", Color.black, Color.clear]])
+			.action_({
+				var scalewin, scaletext;
+				scalewin = Window.new("scala scale", Rect(10, 10, 600, 100)).front;
+				scaletext= TextView.new(scalewin, Rect(10, 10, 580, 50));
+				scaletext.string = "[1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8, 2/1]";
+				Button.new(scalewin, Rect(480, 70, 100, 20))
+								.states_([["Draw Ratios", Color.black, Color.clear]])
+								.action_({
+									this.drawRatios(scaletext.string.interpret);
+								});
+			});
+			
+		Button.new(win,Rect(1010,325,90,16))
+			.font_(Font.new("Helvetica", 9))
+			.states_([["clear grid", Color.black, Color.clear]])
+			.action_({
+				tuninggrid.clearGrid;
+				this.drawRatios([]); // empty drawing harmonics list
+				gridnotes.do({arg array; array.do({arg synth; synth.release }) });
+			});
 			
 		// plot the frequency of strings played
 		win.view.keyDownAction_({|me, char|
@@ -701,6 +835,16 @@ a.synth = \saw
 a.synth = \moog
 a.tuning = \just
 a.tuning = \et12
+
+
+a = TuningTheory.new
+a.createGUI
+a.postLists
+// draw ratios
+a.drawRatios([9/8, 81/64, 4/3, 3/2, 27/16, 243/128, 2/1])
+a.drawRatios([]) // eraze lines that are already drawn
+// set ratios (if not using GUI)
+a.setRatios([9/8, 81/64, 4/3, 3/2, 27/16, 243/128, 2/1])
 
 
 
