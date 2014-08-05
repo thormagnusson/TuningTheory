@@ -10,6 +10,7 @@ TuningGrid {
 	var fillcolor, fillmode;
 	var traildrag, bool;
 	var font, fontColor;
+	var backgroundDrawing;
 	
 	var refresh 			= true;	// false during 'reconstruct'
 	var refreshDeferred	= false;
@@ -53,6 +54,12 @@ TuningGrid {
 		fontColor = Color.black;
 		gridNodes = Array.newClear(columns) ! rows;
 
+		backgroundDrawing = UserView.new(win, Rect(bounds.left, bounds.top-5, bounds.width+1, bounds.height+1+10))
+		.drawFunc_({
+
+			backgrDrawFunc.value; // background draw function
+		});
+		
 		mouseTracker = UserView.new(win, Rect(bounds.left, bounds.top, bounds.width+1, bounds.height+1));
  		//bounds = mouseTracker.bounds;
 
@@ -123,7 +130,7 @@ TuningGrid {
 
 			// the column lines
 			columnsemitones.do({arg semitone;
-				[\semitone, semitone].postln;
+				//[\semitone, semitone].postln;
 				pen.line( // keep 12 in there (not semitones.size) as SC calculates semitones to 12
 					Point(semitone * (bounds.width/12), 0).round(1)+0.5, 
 					Point(semitone * (bounds.width/12), bounds.height).round(1)+0.5
@@ -248,6 +255,7 @@ TuningGrid {
 			});
 		});
 		mouseTracker.refresh;
+		backgroundDrawing.refresh;
 	}
 	
 	// GRID
@@ -292,6 +300,7 @@ TuningGrid {
 			{
 			win.isClosed.not.if({ // if window is not closed, update...
 				mouseTracker.refresh;
+				backgroundDrawing.refresh;
 			});
 			}.defer;
 		});
@@ -445,6 +454,7 @@ TuningGrid {
 	}
 	
 	remove {
+		backgroundDrawing.remove;
 		mouseTracker.remove;
 		win.refresh;
 	}

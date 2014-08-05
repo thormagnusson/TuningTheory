@@ -7,8 +7,8 @@ TuningTheory {
 
 	var win, gui, keybview, tuninggrid, notes, gridnotes, group, tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
-	var calcFreq, semitones, nodestates, drawRatiosArray;
-	var tuning, outbus, chordArray;
+	var calcFreq, semitones, tuningratios, nodestates, drawRatiosArray;
+	var <tuning, outbus, chordArray;
 		
 	*new {
 		^super.new.initKeystation;
@@ -23,6 +23,7 @@ TuningTheory {
 		synthdefs = [\saw, \moog];
 		synth = synthdefs[0];
 		chordArray = []; // current notes
+	//	ratiowinFlag = false;
 		
 		gui = false; // no GUI by default
 
@@ -149,7 +150,7 @@ TuningTheory {
 	}
 	
 	tuning_ { | argtuning |
-		var temptuningratios, tuningratios, keycounter, note;
+		var temptuningratios, keycounter, note;
 		tuning = argtuning;
 		
 		if(tuning.isArray, {
@@ -196,6 +197,13 @@ TuningTheory {
 					});
 				});				
 			});
+			
+//			if(ratiowinFlag, {
+//				"In Here".postln;
+//				// put a list with rational numbers into the window
+//				ratiotext.string_(this.findRatios(tuningratios).asString);
+//			});
+	
 		});
 	}
 		
@@ -248,7 +256,7 @@ TuningTheory {
 //			Pen.stroke;
 			Pen.color = Color.red(0.75);
 			drawRatiosArray.do({arg ratio;
-				Pen.line(Point((ratio.ratiomidi * (990/12)).round(1)+0.5, 0), Point((ratio.ratiomidi * (990/12)).round(1)+0.5, 300));
+				Pen.line(Point((ratio.ratiomidi * (990/12)).round(1)+0.5, -10), Point((ratio.ratiomidi * (990/12)).round(1)+0.5, 320));
 			});
 			Pen.stroke;
 		});
@@ -303,12 +311,16 @@ TuningTheory {
 		this.tuning_(array);
 	}
 	
+	findRatios {arg array;
+		^array.collect({arg ratio; 	(ratio.asFraction[0].asString +/+ ratio.asFraction[1].asString) });
+	}
+	
 	createGUI {
-		
 		var midiclientmenu, synthdefmenu, outbusmenu, tuningmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
 		var chordmenu, scalemenu, play, patRecButt, mousesynth;
 		var chords, scales, tunings, chordnames, chord, scalenames, scale;
 		var playMode, playmodeSC, lastkey;
+		var ratiowin, ratiotext;
 
 		var bounds = Rect(20, 5, 1200, 360);
 		gui = true;
@@ -317,7 +329,7 @@ TuningTheory {
 		lastkey = 60;
 		playMode = true;
 		playmodeSC = "chord";
-		win = Window.new("- ixi tuning theory -", Rect(100, 400, bounds.width+20, bounds.height+10), resizable:false).front;
+		win = Window.new("- ixi tuning theory -", Rect(100, 500, bounds.width+20, bounds.height+10), resizable:false).front;
 		
 		keybview = MIDIKeyboard.new(win, Rect(10, 60, 990, 160), 5, 36)
 				.keyDownAction_({arg key; 
@@ -541,6 +553,7 @@ TuningTheory {
 					//nodestates = tuninggrid.getNodeStates;
 					[\nodestates____, nodestates].postln;
 					this.tuning_(tuning);
+
 					//tuninggrid.calculateDrawing(semitones);
 					//tuninggrid.setNodeStates_(nodestates);
 					[\tuning, tuning].postln;
@@ -616,10 +629,11 @@ TuningTheory {
 //					["playing pattern", Color.black, Color.green.alpha_(0.2)]])
 			.action_({arg butt;
 				var scalewin, scaletext, scaletrybutt, scalesavebutt;
-				scalewin = Window.new("scala scale", Rect(10, 10, 600, 400)).front;
+				scalewin = Window.new("scala tuning", Rect(10, 10, 600, 400)).front;
 				scaletext= TextView.new(scalewin, Rect(10, 10, 580, 350));
 				scaletrybutt = Button.new(scalewin, Rect(360, 370, 100, 20))
-								.states_([["Try Scale", Color.black, Color.clear]])
+								.font_(Font.new("Helvetica", 9))
+								.states_([["Try Tuning", Color.black, Color.clear]])
 								.action_({
 									// XXX need to allow for testing scales before saving
 									var scalefile, scalename;
@@ -632,14 +646,16 @@ TuningTheory {
 									tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) ++ [\_temp] )
 								});
 				scalesavebutt = Button.new(scalewin, Rect(480, 370, 100, 20))
-								.states_([["Save Scale", Color.black, Color.clear]])
+								.font_(Font.new("Helvetica", 9))
+								.states_([["Save Tuning", Color.black, Color.clear]])
 								.action_({
 									var scalefile, scalename;
 									scalename = scaletext.string[2..scaletext.string.find(".scl")-1];
 									[\scalename, scalename].postln;
-									scalefile = File(Platform.userAppSupportDir+/+"scl_user/"+scalename++".scl", "w");
+									scalefile = File(Platform.userAppSupportDir+/+"scl_user/"++scalename++".scl", "w");
 									scalefile.write(scaletext.string);
 									scalefile.close;
+									tunings = tunings.add([scalename.asString, scalename.asSymbol]);
 									tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) ++ [scalename.asSymbol] )
 								});
 				
@@ -766,28 +782,121 @@ Description of the _temp scale (args: num of steps, then second degree, up until
 //					};
 			});
 		
-		Button.new(win,Rect(1010,305,90,16))
+		Button.new(win,Rect(1010,315,90,16))
 			.font_(Font.new("Helvetica", 9))
-			.states_([["draw ratios", Color.black, Color.clear]])
+			.states_([["tuning ratios", Color.black, Color.clear]])
 			.action_({
-				var scalewin, scaletext;
-				scalewin = Window.new("scala scale", Rect(10, 10, 600, 100)).front;
-				scaletext= TextView.new(scalewin, Rect(10, 10, 580, 50));
-				scaletext.string = "[1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8, 2/1]";
-				Button.new(scalewin, Rect(480, 70, 100, 20))
-								.states_([["Draw Ratios", Color.black, Color.clear]])
-								.action_({
-									this.drawRatios(scaletext.string.interpret);
-								});
+				var ratiolisttext, lastselection;
+				var tuningslider, tuningnumber;
+				var slot=1;
+				var offset = tuningratios[slot];
+				
+				ratiowin = Window.new("ratios", Rect(win.bounds.left, win.bounds.top-230, 600, 200)).front;
+				ratiotext= TextView.new(ratiowin, Rect(10, 10, 580, 50));
+				ratiotext.string_(this.findRatios(tuningratios).asString);
+				ratiotext.keyDownAction_({arg view, key, modifiers, unicode, keycode;
+					[\view, view, \key, key, modifiers, unicode, keycode].postln;
+					lastselection = "ratiotext";
+					if(keycode == 36, { // ENTER
+						"ENTER".postln;
+						ratiolisttext.string_(tuningratios.asString);
+						this.setRatios(ratiotext.string.interpret);
+						offset = tuningratios[slot];
+						tuningslider.value_(0.5);
+					});
+				});
+				ratiolisttext= TextView.new(ratiowin, Rect(10, 70, 580, 50));
+				ratiolisttext.string = tuningratios.asString;
+				ratiolisttext.keyDownAction_({arg view, key, modifiers, unicode, keycode;
+					[\view, view, \key, key, modifiers, unicode, keycode].postln;
+					lastselection = "ratiolisttext";
+					if(keycode == 36, { // ENTER
+						"ENTER".postln;
+						ratiotext.string_(this.findRatios(tuningratios).asString);
+						this.setRatios(ratiolisttext.string.interpret);
+						offset = tuningratios[slot];
+						tuningslider.value_(0.5);
+					});
+				});
+			//	ratiowinFlag = true;
+			//	ratiowin.onClose({ ratiowinFlag = false });
+		[\items, 	{arg i; i}!tuningratios.size].postln;
+				PopUpMenu.new(ratiowin,Rect(10,130, 30,16))
+					.font_(Font.new("Helvetica", 9))
+					.items_({arg i; (i+1).asString}!(tuningratios.size-1))
+					.background_(Color.white)
+					.action_({arg item;
+						slot = item.value+1;
+						offset = tuningratios[slot];
+						tuningslider.value_(0.5);
+					//	tuningnumber.value_(tuningratios[slot]);
+						[\slot, slot].postln;
+					});
+				tuningslider = Slider.new(ratiowin, Rect(45,130, 200,16))
+					.value_(0.5)
+					.action_({arg sl;
+						tuningratios[slot] = offset + sl.value.linlin(0, 1, -0.01, 0.01);
+						ratiotext.string_(this.findRatios(tuningratios).asString);
+						ratiolisttext.string_(tuningratios.asString);
+					//	this.drawRatios(ratiotext.string.interpret);
+						this.setRatios(ratiotext.string.interpret);
+					});
+//				tuningnumber = NumberBox.new(ratiowin, Rect(200, 130, 60,16))
+//					.value_(tuningratios[slot])
+//					.step_(0.0001)
+//					.scroll_step_(0.0001)
+//					.action_({arg box;
+//						
+//						tuningslider.value_(box.value.linlin(tuningratios[slot]-0.01, tuningratios[slot]+0.01, 0, 1));
+//						tuningratios[slot] = box.value;
+//						ratiotext.string_(this.findRatios(tuningratios).asString);
+//					//	this.drawRatios(ratiotext.string.interpret);
+//						this.setRatios(ratiotext.string.interpret);
+//					});
+				Button.new(ratiowin, Rect(275, 130, 70, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["post cents", Color.black, Color.clear]])
+					.action_({
+						" ------- Current tuning in cents ------- ".postln;
+						((tuningratios.ratiomidi.round(0.00001) *100)).postln;
+				});
+				Button.new(ratiowin, Rect(355, 130, 70, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["get ratios", Color.black, Color.clear]])
+					.action_({
+						ratiotext.string_(this.findRatios(tuningratios).asString);
+						ratiolisttext.string_(tuningratios.asString);
+					});
+				Button.new(ratiowin, Rect(430, 130, 70, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["draw ratios", Color.black, Color.clear]])
+					.action_({
+						this.drawRatios(ratiotext.string.interpret);
+					});
+				Button.new(ratiowin, Rect(505, 130, 70, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["try ratios", Color.black, Color.clear]])
+					.action_({
+						if(lastselection == "ratiotext", {
+					ratiolisttext.string_(tuningratios.asString);
+							this.setRatios(ratiotext.string.interpret);
+						}, {
+					ratiotext.string_(this.findRatios(ratiolisttext.string.interpret).asString);
+					this.setRatios(ratiolisttext.string.interpret);
+						tuningslider.value_(0.5);
+						offset = tuningratios[slot];
+						});
+					});
 			});
 			
-		Button.new(win,Rect(1010,325,90,16))
+		Button.new(win,Rect(1010, 335, 90, 16))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["clear grid", Color.black, Color.clear]])
 			.action_({
 				tuninggrid.clearGrid;
 				this.drawRatios([]); // empty drawing harmonics list
 				gridnotes.do({arg array; array.do({arg synth; synth.release }) });
+				gridnotes = {{nil}!12}!6;
 			});
 			
 		// plot the frequency of strings played
@@ -815,6 +924,8 @@ Description of the _temp scale (args: num of steps, then second degree, up until
 		//	recordarrayresp.remove;
 		//	pattern.stop;
 		//	metronome.stop;
+			notes.do({arg synth; synth.release });
+			gridnotes.do({arg array; array.do({arg synth; synth.release }) });
 			Server.default.freeAll;
 			gui = false;
 

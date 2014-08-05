@@ -4,7 +4,7 @@ A SuperCollider support for reading Scala files:
 http://www.xs4all.nl/~huygensf/scala/scl_format.html
 
 
-a = DroneScale("bohlen-p_9");
+a = XiiScala("bohlen-p_9");
 a.tuning.octaveRatio
 a.degrees
 a.semitones
