@@ -57,7 +57,6 @@ TuningTheory {
 				break.value();
 				})}); };
 				
-			[\chordArray, chordArray].postln;
 			if(gui, {	 {
 				keybview.keyDown(key);
 				this.setGridNode(key, 1);
@@ -124,20 +123,18 @@ TuningTheory {
 		notes.copy.do({arg arraysynth, key;
 			if( arraysynth != nil , { 
 				arraysynth.release;
-				notes[key] = Synth(synth, [\freq, this.calcFreq( key ), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+				notes[key] = Synth(synth, [\freq, this.calcFreq( key ), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend, \out, outbus ], target:group);
 			});
 		});
-	// XXX needs fixing
-		gridnotes.copy.reverse.do({arg array, i;
+		
+		gridnotes.copy.do({arg array, i;
 			array.do({arg arraysynth, j;
 				if( arraysynth != nil , { 
 					arraysynth.release;
-					gridnotes[i][j] = Synth(synth, [\freq, this.calcFreq( keycounter ), \amp, 0.5, \cutoff, 10, \pitchBend, pitchBend, \out, outbus ], target:group);
+					gridnotes[i][j] = Synth(synth, [\freq, this.calcFreq( 24+(((i-6).abs*array.size)+j) ), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend, \out, outbus ], target:group);
 				});
-				keycounter = keycounter + 1;
 			});
 		});
-
 	}
 	
 	postLists {
@@ -150,7 +147,7 @@ TuningTheory {
 	}
 	
 	tuning_ { | argtuning |
-		var temptuningratios, keycounter, note;
+		var temptuning, keycounter, note;
 		tuning = argtuning;
 		
 		if(tuning.isArray, {
@@ -158,37 +155,24 @@ TuningTheory {
 				tuningratios = (tuning/100).midiratio;
 			}, {	// the array is in rational numbers (or floating point ratios from 1 to 2)
 				tuningratios = tuning;
+				"in here ! !!! ! !  !".postln;
 			});
 			semitones = tuningratios.ratiomidi;
 		}, {
-			temptuningratios = Tuning.newFromKey(argtuning.asSymbol); 
-			if(temptuningratios.isNil, { temptuningratios = XiiScala.new(argtuning) }); // support of the Scala scales / tunings
-			tuningratios = temptuningratios.ratios;
-			semitones = temptuningratios.semitones;
+			temptuning = Tuning.newFromKey(argtuning.asSymbol); 
+			if(temptuning.isNil, { temptuning = XiiScala.new(argtuning) }); // support of the Scala scales / tunings
+			tuningratios = temptuning.ratios;
+			semitones = temptuning.semitones;
 		});
-		
-		//semitones = semitones ++ (semitones+12); // I need an extra octave of semitones, as tuningreference can go up 11 halftones
-//		keycounter = semitones.size*3; // third octave up
-		keycounter = 36; // third octave up
-		
+
 		// keyboard notes
 		notes.do({arg synth, note;
-			if( synth != nil , { synth.set(\freq, this.calcFreq( note ) ) });
+			if( synth != nil , {[\note, note].postln; synth.set(\freq, this.calcFreq( note ) ) });
 		});
 
 		if(gui, { 
 			nodestates = tuninggrid.getNodeStates;
 			this.createTuningGrid( semitones );
-			//tuninggrid.setNodeStates_( nodestates );
-		//	[\semitones___________________, semitones].postln;
-		//	[\nodestates___________________, nodestates].postln;
-			// notegrid notes
-//			gridnotes.reverse.do({arg array;
-//				array.do({arg synth;
-//					if( synth != nil , { synth.set(\freq, this.calcFreq(keycounter) ) });
-//					keycounter = keycounter + 1;
-//				})
-//			});
 			tuninggrid.gridNodes.do({arg array;
 				array.do({arg node;
 					if( node.state == true, { 
@@ -197,23 +181,10 @@ TuningTheory {
 					});
 				});				
 			});
-			
-//			if(ratiowinFlag, {
-//				"In Here".postln;
-//				// put a list with rational numbers into the window
-//				ratiotext.string_(this.findRatios(tuningratios).asString);
-//			});
-	
 		});
 	}
 		
 	calcFreq {arg note;
-		\_________________________________________________.postln;
-	//	[\Semitones, semitones].postln;
-	//	[\note, note].postln;
-	//	[\tuningreference, tuningreference].postln;
-	//	[\semitone, (semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size]].postln; // this is CORRECT !!!
-	//	[\freq, ((semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size] + tuningreference).midicps].postln;
 	
 //		^semitones[(note%semitones.size)].midicps * [1,2,4,8,16,32,64,128,256,512].at(note.div(semitones.size));
 
@@ -239,8 +210,8 @@ TuningTheory {
 				array[0 .. semitones.size];
 			});
 		});			
-	//	[\NODESTATES_, nodestates].postln;
-		
+
+		if(tuninggrid.isNil.not, { tuninggrid.remove }); // get rid of the existent grid
 		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 990, 120), columns: semitones, rows: 6, border:true);
 		tuninggrid.setBackgrColor_(Color.white);
 		tuninggrid.setBorder_(true);
@@ -249,11 +220,6 @@ TuningTheory {
 		tuninggrid.setFillColor_(Color.white);
 		tuninggrid.setNodeStates_(nodestates);
 		tuninggrid.setBackgrDrawFunc_({ // drawing harmonics
-//			Pen.color = Color.green(0.75);
-//			drawRatiosArray.do({arg ratio;
-//				Pen.line(Point((ratio-1)*990, 0), Point((ratio-1)*990, 300));
-//			});
-//			Pen.stroke;
 			Pen.color = Color.red(0.75);
 			drawRatiosArray.do({arg ratio;
 				Pen.line(Point((ratio.ratiomidi * (990/12)).round(1)+0.5, -10), Point((ratio.ratiomidi * (990/12)).round(1)+0.5, 320));
@@ -262,10 +228,7 @@ TuningTheory {
 		});
 		tuninggrid.nodeDownAction_({arg nodeloc;
 			var note = (nodeloc[0]+((nodeloc[1]-6).abs*semitones.size))+(semitones.size*2)+tuningreference;
-//			[\nodeloc, nodeloc].postln; 
-//			[\note, note].postln;
 			if(tuninggrid.getState(nodeloc[0], nodeloc[1]) == 1, {
-//				[\currentNODE, gridnotes[nodeloc[1]][nodeloc[0]]].postln;
 				gridnotes.postln;
 				if(gridnotes[nodeloc[1]][nodeloc[0]].isNil, {
 					gridnotes[nodeloc[1]][nodeloc[0]] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
@@ -308,6 +271,7 @@ TuningTheory {
 	}
 
 	setRatios {arg array;
+		[\SETRATIOS_array, array].postln;	
 		this.tuning_(array);
 	}
 	
@@ -548,18 +512,8 @@ TuningTheory {
 				.items_(tunings.collect({arg tuning; tuning[0]}))
 				.background_(Color.white)
 				.action_({arg item;
-					//tuning = tunings[item.value][1];
 					tuning = tunings[item.value][0].asSymbol;
-					//nodestates = tuninggrid.getNodeStates;
-					[\nodestates____, nodestates].postln;
 					this.tuning_(tuning);
-
-					//tuninggrid.calculateDrawing(semitones);
-					//tuninggrid.setNodeStates_(nodestates);
-					[\tuning, tuning].postln;
-					//tuningratios = (tuning-ratiosET) + 1;
-					//tuningratios.postln;
-					"Selectec tuning : ".post; tuning.postln;
 					win.refresh;
 				})
 				.keyDownAction_({arg view, key, mod, unicode; 
@@ -621,176 +575,15 @@ TuningTheory {
 				}).start;
 			});
 		
-		patRecButt = Button.new(win,Rect(420,31,90,16))
-			.font_(Font.new("Helvetica", 9))
-			.states_([["create tuning", Color.black, Color.clear]])
-//			.states_([["record pattern", Color.black, Color.clear], 
-//					["recording", Color.black, Color.red.alpha_(0.2)], 
-//					["playing pattern", Color.black, Color.green.alpha_(0.2)]])
-			.action_({arg butt;
-				var scalewin, scaletext, scaletrybutt, scalesavebutt;
-				scalewin = Window.new("scala tuning", Rect(10, 10, 600, 400)).front;
-				scaletext= TextView.new(scalewin, Rect(10, 10, 580, 350));
-				scaletrybutt = Button.new(scalewin, Rect(360, 370, 100, 20))
-								.font_(Font.new("Helvetica", 9))
-								.states_([["Try Tuning", Color.black, Color.clear]])
-								.action_({
-									// XXX need to allow for testing scales before saving
-									var scalefile, scalename;
-//									scalename = scaletext.string[2..scaletext.string.find(".scl")-1];
-//									[\scalename, scalename].postln;
-									scalefile = File(Platform.userAppSupportDir+/+"scl_user/_temp.scl", "w");
-									scalefile.write(scaletext.string);
-									scalefile.close;
-									this.tuning_(\_temp);
-									tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) ++ [\_temp] )
-								});
-				scalesavebutt = Button.new(scalewin, Rect(480, 370, 100, 20))
-								.font_(Font.new("Helvetica", 9))
-								.states_([["Save Tuning", Color.black, Color.clear]])
-								.action_({
-									var scalefile, scalename;
-									scalename = scaletext.string[2..scaletext.string.find(".scl")-1];
-									[\scalename, scalename].postln;
-									scalefile = File(Platform.userAppSupportDir+/+"scl_user/"++scalename++".scl", "w");
-									scalefile.write(scaletext.string);
-									scalefile.close;
-									tunings = tunings.add([scalename.asString, scalename.asSymbol]);
-									tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) ++ [scalename.asSymbol] )
-								});
-				
-//				scaletext.string = "! _temp.scl
-//!
-//Description of the _temp scale (args: num of steps, then second degree, up until the octave)
-//12
-//!
-//567/512
-//9/8
-//147/128
-//21/16
-//1323/1024
-//189/128
-//3/2
-//49/32
-//7/4
-//441/256
-//63/32
-//2/1
-//";
-
-				scaletext.string = "! _temp.scl
-!
-Description of the _temp scale (args: num of steps, then second degree, up until the octave)
-22
-!
-256/243
-16/15
-10/9
-9/8
-32/27
-6/5
-5/4
-81/64
-4/3
-27/20
-45/32
-729/512
-3/2
-128/81
-8/5
-5/3
-27/16
-16/9
-9/5
-15/8
-243/128
-2/1
-";
-
-				
-//				switch(butt.value)
-//				{0}{"STANDBY".postln;
-//						pattern.stop;
-//						noteRecFlag = false;
-//						timerReadyFlag = true;
-//						patternPlaying = false;
-//		
-//					}
-//				{1}{"RECORDING PATTERN".postln;
-//								pattern.stop;
-//								noteRecFlag = true;
-//								timerReadyFlag = true;
-//								patternPlaying = false;
-//		
-//					}
-//				{2}{"PLAYING PATTERN".postln;
-//					
-//								if(freqArray.size > 0, { // there was some recording taking place
-//								
-//									" ************  Frequency array is : ".postln;
-//									freqArray.postln;
-//								
-//									timesincelastkey = (TempoClock.default.beats-thistime).round(0.25);
-//									thistime = TempoClock.default.beats;
-//									durArray = durArray.add(timesincelastkey);
-//									durArray.removeAt(0);
-//									// quantizise to the bar
-//									durArray[durArray.size-1] = durArray[durArray.size-1]+(durArray.sum.round(4)-durArray.sum);
-//									
-//									//detuneArray = noteArray.collect({arg note; note.midicps * tuningratios.wrapAt(note-(tonic%12)) - note.midicps });
-//			
-//									" ************  Detune array is : ".postln;
-//									//detuneArray.postln;
-//									
-//									" ************  Duration array is : ".postln;
-//									durArray.postln;
-//				
-//									" ************  Sustain array is : ".postln;
-//									sustainArray.postln;
-//				
-//				
-//									pattern = Pdef(\pattern,
-//										Pbind(
-//											\instrument, synthname, 
-//											\freq, Pseq(freqArray, inf), 
-//											\dur, Pseq(durArray, inf),
-//											\amp, Pseq(ampArray, inf), 
-//											\sustain, Pseq(sustainArray, inf),
-//											\out, outbus
-//											)
-//										).play(quant:4);
-//										
-//									" ************  Generated Pattern : ".postln;
-//									
-//									Post << ("Pbind(\\instrument, " ++ "\\" ++ synthname.asString ++ ", \\freq, Pseq(" ++ freqArray.asCompileString ++ ", inf), \\dur, Pseq(" ++ durArray.asCompileString ++ ", inf), \\amp, Pseq(" ++ ampArray.asCompileString ++ ", inf), \\sustain, Pseq(" ++ sustainArray.asCompileString ++", inf), \\out, "++ outbus ++").play" );
-//									
-//									noteRecFlag = false;
-//									freqArray = [];
-//									durArray = [];
-//									ampArray = [];
-//									sustainArray = [];
-//									timerReadyFlag = false;
-//									patternPlaying = true;
-//									
-//								},{
-//									pattern.stop;
-//									patternPlaying = false;
-//									timerReadyFlag = true;
-//								});
-//		
-//		
-//					};
-			});
-		
-		Button.new(win,Rect(1010,315,90,16))
+		Button.new(win, Rect(420,31,90,16))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["tuning ratios", Color.black, Color.clear]])
 			.action_({
-				var ratiolisttext, lastselection;
+				var ratiolisttext, lastselection, degreeslotmenu;
 				var tuningslider, tuningnumber;
 				var slot=1;
 				var offset = tuningratios[slot];
-				
+
 				ratiowin = Window.new("ratios", Rect(win.bounds.left, win.bounds.top-230, 600, 200)).front;
 				ratiotext= TextView.new(ratiowin, Rect(10, 10, 580, 50));
 				ratiotext.string_(this.findRatios(tuningratios).asString);
@@ -799,14 +592,14 @@ Description of the _temp scale (args: num of steps, then second degree, up until
 					lastselection = "ratiotext";
 					if(keycode == 36, { // ENTER
 						"ENTER".postln;
-						ratiolisttext.string_(tuningratios.asString);
+						ratiolisttext.string_(tuningratios.asCompileString);
 						this.setRatios(ratiotext.string.interpret);
 						offset = tuningratios[slot];
 						tuningslider.value_(0.5);
 					});
 				});
 				ratiolisttext= TextView.new(ratiowin, Rect(10, 70, 580, 50));
-				ratiolisttext.string = tuningratios.asString;
+				ratiolisttext.string = tuningratios.asCompileString;
 				ratiolisttext.keyDownAction_({arg view, key, modifiers, unicode, keycode;
 					[\view, view, \key, key, modifiers, unicode, keycode].postln;
 					lastselection = "ratiolisttext";
@@ -821,7 +614,7 @@ Description of the _temp scale (args: num of steps, then second degree, up until
 			//	ratiowinFlag = true;
 			//	ratiowin.onClose({ ratiowinFlag = false });
 		[\items, 	{arg i; i}!tuningratios.size].postln;
-				PopUpMenu.new(ratiowin,Rect(10,130, 30,16))
+				degreeslotmenu = PopUpMenu.new(ratiowin,Rect(10,130, 30,16))
 					.font_(Font.new("Helvetica", 9))
 					.items_({arg i; (i+1).asString}!(tuningratios.size-1))
 					.background_(Color.white)
@@ -832,28 +625,16 @@ Description of the _temp scale (args: num of steps, then second degree, up until
 					//	tuningnumber.value_(tuningratios[slot]);
 						[\slot, slot].postln;
 					});
-				tuningslider = Slider.new(ratiowin, Rect(45,130, 200,16))
+				tuningslider = Slider.new(ratiowin, Rect(45,130, 210,16))
 					.value_(0.5)
 					.action_({arg sl;
 						tuningratios[slot] = offset + sl.value.linlin(0, 1, -0.01, 0.01);
 						ratiotext.string_(this.findRatios(tuningratios).asString);
-						ratiolisttext.string_(tuningratios.asString);
+						ratiolisttext.string_(tuningratios.asCompileString);
 					//	this.drawRatios(ratiotext.string.interpret);
 						this.setRatios(ratiotext.string.interpret);
 					});
-//				tuningnumber = NumberBox.new(ratiowin, Rect(200, 130, 60,16))
-//					.value_(tuningratios[slot])
-//					.step_(0.0001)
-//					.scroll_step_(0.0001)
-//					.action_({arg box;
-//						
-//						tuningslider.value_(box.value.linlin(tuningratios[slot]-0.01, tuningratios[slot]+0.01, 0, 1));
-//						tuningratios[slot] = box.value;
-//						ratiotext.string_(this.findRatios(tuningratios).asString);
-//					//	this.drawRatios(ratiotext.string.interpret);
-//						this.setRatios(ratiotext.string.interpret);
-//					});
-				Button.new(ratiowin, Rect(275, 130, 70, 20))
+				Button.new(ratiowin, Rect(280, 130, 70, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["post cents", Color.black, Color.clear]])
 					.action_({
@@ -865,7 +646,8 @@ Description of the _temp scale (args: num of steps, then second degree, up until
 					.states_([["get ratios", Color.black, Color.clear]])
 					.action_({
 						ratiotext.string_(this.findRatios(tuningratios).asString);
-						ratiolisttext.string_(tuningratios.asString);
+						ratiolisttext.string_(tuningratios.asCompileString);
+						degreeslotmenu.items_({arg i; (i+1).asString}!(tuningratios.size-1));
 					});
 				Button.new(ratiowin, Rect(430, 130, 70, 20))
 					.font_(Font.new("Helvetica", 9))
@@ -878,17 +660,88 @@ Description of the _temp scale (args: num of steps, then second degree, up until
 					.states_([["try ratios", Color.black, Color.clear]])
 					.action_({
 						if(lastselection == "ratiotext", {
-					ratiolisttext.string_(tuningratios.asString);
+							ratiolisttext.string_(tuningratios.asCompileString);
 							this.setRatios(ratiotext.string.interpret);
 						}, {
-					ratiotext.string_(this.findRatios(ratiolisttext.string.interpret).asString);
-					this.setRatios(ratiolisttext.string.interpret);
-						tuningslider.value_(0.5);
-						offset = tuningratios[slot];
+							ratiotext.string_(this.findRatios(ratiolisttext.string.interpret).asString);
+							this.setRatios(ratiolisttext.string.interpret);
+							tuningslider.value_(0.5);
+							offset = tuningratios[slot];
 						});
 					});
+				 Button.new(ratiowin, Rect(505, 160, 70, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["make Scala file", Color.black, Color.clear]])
+					.action_({arg butt;
+						var scalewin, scaletext, scaletrybutt, scalesavebutt, scalastring;
+						scalewin = Window.new("scala tuning", Rect(ratiowin.bounds.left+ratiowin.bounds.width+10, win.bounds.top-430, 610, 400)).front;
+						scaletext= TextView.new(scalewin, Rect(10, 10, 590, 350));
+						Button.new(scalewin, Rect(10, 370, 120, 20))
+										.font_(Font.new("Helvetica", 9))
+										.states_([["Scala information", Color.black, Color.clear]])
+										.action_({
+											Document.new.string_("THE SCALA FILE FORMAT \n\nSee info here: http://www.huygens-fokker.org/scala/scl_format.html\n\n
+Here is an example of a valid file. Note:\n
+- The first line is the scale name
+- The third line is the description of the scale
+- the fourthe line is the number of degrees in the scale
+- then we have the ratios, line by line 
+- the 1/1 (first degree) is skipped and it's possible to mix rational numbers and cents
+\n
+----------------------------------------------
+! meanquar.scl
+!
+1/4-comma meantone scale. Pietro Aaron's temperament (1523)
+12
+!
+76.04900
+193.15686
+310.26471
+5/4
+503.42157
+579.47057
+696.57843
+25/16
+889.73529
+1006.84314
+1082.89214
+2/1
+----------------------------------------------").promptToSave_(false);
+										});
+						scaletrybutt = Button.new(scalewin, Rect(410, 370, 80, 20))
+										.font_(Font.new("Helvetica", 9))
+										.states_([["Try Tuning", Color.black, Color.clear]])
+										.action_({
+											var scalefile, scalename;
+											scalefile = File(Platform.userAppSupportDir+/+"scl_user/_temp.scl", "w");
+											scalefile.write(scaletext.string);
+											scalefile.close;
+											this.tuning_(\_temp);
+										});
+						scalesavebutt = Button.new(scalewin, Rect(510, 370, 80, 20))
+										.font_(Font.new("Helvetica", 9))
+										.states_([["Save Tuning", Color.black, Color.clear]])
+										.action_({
+											var scalefile, scalename;
+											scalename = scaletext.string[2..scaletext.string.find(".scl")-1];
+											[\scalename, scalename].postln;
+											scalefile = File(Platform.userAppSupportDir+/+"scl_user/"++scalename++".scl", "w");
+											scalefile.write(scaletext.string);
+											scalefile.close;
+											tunings = tunings.add([scalename.asString, scalename.asSymbol]);
+											tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) );
+										});
+
+						scalastring = "! _temp.scl
+!
+Description of the _temp scale (args: num of steps, then second degree, up until the octave)\n"
+++(tuningratios.size).asString++"\n!\n";
+this.findRatios(tuningratios)[1..].do({arg ratio; scalastring = scalastring ++ ratio ++ "\n" });
+scalastring = scalastring ++ "2/1";
+
+						scaletext.string = scalastring;
 			});
-			
+		});
 		Button.new(win,Rect(1010, 335, 90, 16))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["clear grid", Color.black, Color.clear]])
