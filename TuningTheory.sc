@@ -259,19 +259,14 @@ TuningTheory {
 		[\node, node].postln;
 		tuninggrid.setState_(note%semitones.size, (note.div(semitones.size)-6).abs, state)
 	}
-	
-	test {arg note, state;
-		this.setGridNode(note, state);	
-	}
-	
-	
+		
 	drawRatios {arg array;
 		drawRatiosArray = array;
 		tuninggrid.refresh;
 	}
 
+	// deprecated method
 	setRatios {arg array;
-		[\SETRATIOS_array, array].postln;	
 		this.tuning_(array);
 	}
 	
@@ -537,7 +532,7 @@ TuningTheory {
 				});
 			});
 		
-		play = Button.new(win,Rect(420,5,90,16))
+		play = Button.new(win,Rect(420,5,90,18))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["play scale", Color.black, Color.clear]])
 			.action_({
@@ -575,7 +570,7 @@ TuningTheory {
 				}).start;
 			});
 		
-		Button.new(win, Rect(420,31,90,16))
+		Button.new(win, Rect(420,31,90,18))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["tuning ratios", Color.black, Color.clear]])
 			.action_({
@@ -584,7 +579,7 @@ TuningTheory {
 				var slot=1;
 				var offset = tuningratios[slot];
 
-				ratiowin = Window.new("ratios", Rect(win.bounds.left, win.bounds.top-230, 600, 200)).front;
+				ratiowin = Window.new("ratios", Rect(win.bounds.left, win.bounds.top-220, 600, 190)).front;
 				ratiotext= TextView.new(ratiowin, Rect(10, 10, 580, 50));
 				ratiotext.string_(this.findRatios(tuningratios).asString);
 				ratiotext.keyDownAction_({arg view, key, modifiers, unicode, keycode;
@@ -593,7 +588,7 @@ TuningTheory {
 					if(keycode == 36, { // ENTER
 						"ENTER".postln;
 						ratiolisttext.string_(tuningratios.asCompileString);
-						this.setRatios(ratiotext.string.interpret);
+						this.tuning_(ratiotext.string.interpret);
 						offset = tuningratios[slot];
 						tuningslider.value_(0.5);
 					});
@@ -606,7 +601,7 @@ TuningTheory {
 					if(keycode == 36, { // ENTER
 						"ENTER".postln;
 						ratiotext.string_(this.findRatios(tuningratios).asString);
-						this.setRatios(ratiolisttext.string.interpret);
+						this.tuning_(ratiolisttext.string.interpret);
 						offset = tuningratios[slot];
 						tuningslider.value_(0.5);
 					});
@@ -632,7 +627,7 @@ TuningTheory {
 						ratiotext.string_(this.findRatios(tuningratios).asString);
 						ratiolisttext.string_(tuningratios.asCompileString);
 					//	this.drawRatios(ratiotext.string.interpret);
-						this.setRatios(ratiotext.string.interpret);
+						this.tuning_(ratiotext.string.interpret);
 					});
 				Button.new(ratiowin, Rect(280, 130, 70, 20))
 					.font_(Font.new("Helvetica", 9))
@@ -655,21 +650,21 @@ TuningTheory {
 					.action_({
 						this.drawRatios(ratiotext.string.interpret);
 					});
-				Button.new(ratiowin, Rect(505, 130, 70, 20))
+				Button.new(ratiowin, Rect(505, 130, 85, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["try ratios", Color.black, Color.clear]])
 					.action_({
 						if(lastselection == "ratiotext", {
 							ratiolisttext.string_(tuningratios.asCompileString);
-							this.setRatios(ratiotext.string.interpret);
+							this.tuning_(ratiotext.string.interpret);
 						}, {
 							ratiotext.string_(this.findRatios(ratiolisttext.string.interpret).asString);
-							this.setRatios(ratiolisttext.string.interpret);
+							this.tuning_(ratiolisttext.string.interpret);
 							tuningslider.value_(0.5);
 							offset = tuningratios[slot];
 						});
 					});
-				 Button.new(ratiowin, Rect(505, 160, 70, 20))
+				 Button.new(ratiowin, Rect(505, 155, 85, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["make Scala file", Color.black, Color.clear]])
 					.action_({arg butt;
@@ -742,7 +737,7 @@ scalastring = scalastring ++ "2/1";
 						scaletext.string = scalastring;
 			});
 		});
-		Button.new(win,Rect(1010, 335, 90, 16))
+		Button.new(win,Rect(1008, 335, 90, 18))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["clear grid", Color.black, Color.clear]])
 			.action_({
@@ -808,7 +803,7 @@ a.postLists
 a.drawRatios([9/8, 81/64, 4/3, 3/2, 27/16, 243/128, 2/1])
 a.drawRatios([]) // eraze lines that are already drawn
 // set ratios (if not using GUI)
-a.setRatios([9/8, 81/64, 4/3, 3/2, 27/16, 243/128, 2/1])
+a.tuning_([9/8, 81/64, 4/3, 3/2, 27/16, 243/128, 2/1])
 
 
 
