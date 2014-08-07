@@ -7,8 +7,8 @@ TuningTheory {
 
 	var win, gui, keybview, tuninggrid, notes, gridnotes, group, tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
-	var calcFreq, semitones, tuningratios, nodestates, drawRatiosArray;
-	var <tuning, outbus, chordArray;
+	var calcFreq, semitones, tuningratios, lastratiolisttext, nodestates, drawRatiosArray;
+	var <tuning, outbus, chordArray, <>noteRecArray;
 		
 	*new {
 		^super.new.initKeystation;
@@ -23,12 +23,11 @@ TuningTheory {
 		synthdefs = [\saw, \moog];
 		synth = synthdefs[0];
 		chordArray = []; // current notes
-	//	ratiowinFlag = false;
+		noteRecArray = [];
 		
 		gui = false; // no GUI by default
 
 		MIDIIn.connectAll; // we connect all the incoming devices
-		MIDIFunc.noteOn({arg ...x; x.postln; }); // we post all the args
 		
 		Server.default.waitForBoot({
 			"MIDI Keyboard Ready for Play !!! ".postln;
@@ -42,7 +41,6 @@ TuningTheory {
 				
 		notes = Array.fill(1270, { nil }); // just make this very big (for 12+notesinanoctave tuning support)
 		nodestates = {{0}!12}!6;
-		//gridnotes = Array.fill(10000, { nil });
 		gridnotes = {{nil}!12}!6;
 		group = Group.new; // we create a Group to be able to set cutoff of all active notes
 
@@ -50,6 +48,7 @@ TuningTheory {
 			// we use the key as index into the array as well
 			notes[key] = Synth(synth, [\out, outbus, \freq, this.calcFreq(key), \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
 			chordArray = chordArray.add(key%12).sort;
+			noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
 			
 			block{|break| XiiTheory.chords.do({arg chord; if(chord[1] == chordArray, {
 				"Current Chord is : ".post; chord[0].postln;
@@ -167,7 +166,7 @@ TuningTheory {
 
 		// keyboard notes
 		notes.do({arg synth, note;
-			if( synth != nil , {[\note, note].postln; synth.set(\freq, this.calcFreq( note ) ) });
+			if( synth != nil , { synth.set(\freq, this.calcFreq( note ) ) });
 		});
 
 		if(gui, { 
@@ -256,7 +255,6 @@ TuningTheory {
 		offset = 24; // should this be called keycounter?
 		note = argnote-offset;
 		node = [note%semitones.size, (note.div(semitones.size)-6).abs];
-		[\node, node].postln;
 		tuninggrid.setState_(note%semitones.size, (note.div(semitones.size)-6).abs, state)
 	}
 		
@@ -276,10 +274,10 @@ TuningTheory {
 	
 	createGUI {
 		var midiclientmenu, synthdefmenu, outbusmenu, tuningmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
-		var chordmenu, scalemenu, play, patRecButt, mousesynth;
+		var chordmenu, scalemenu, play, mousesynth;
 		var chords, scales, tunings, chordnames, chord, scalenames, scale;
 		var playMode, playmodeSC, lastkey;
-		var ratiowin, ratiotext;
+		var ratiowin, scalewin, ratiotext;
 
 		var bounds = Rect(20, 5, 1200, 360);
 		gui = true;
@@ -294,32 +292,14 @@ TuningTheory {
 				.keyDownAction_({arg key; 
 					fString.string_(key.asString++"  :  "++key.midinotename);
 					if(playMode, {
-						key.postln;
-						[\freq, this.calcFreq(key), \tonic, tonic].postln;
 						this.setGridNode(key, 1);
-
+						noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
-//							if(timerReadyFlag, { 
-//								timerReadyFlag = false;
-//								thistime = TempoClock.default.beats;
-//							});
-//							if(noteRecFlag, {
-//								freqArray = freqArray.add((note.trunc(12)+(tuning.semitones[note%12])).midicps);
-//								ampArray = ampArray.add(0.2); // rounding - no need for 5 tail numbers
-//								timesincelastkey = (TempoClock.default.beats-thistime).round(0.25);
-//								thistime = TempoClock.default.beats;
-//								durArray = durArray.add(timesincelastkey);
-//								sustainDict.add(note -> thistime.copy); // EXP
-//								sustainArray = sustainArray.add(nil); // EXP - this is a dummy to be replaced
-//							});
-
 					}, {
 						tonic = key; 
-						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scales
-						[\tuningreference, tonic].postln;
-						
+						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scale
 						pitchCircle.drawSet(chord, tonic%12);
-						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));				scaleChordString.string_((tonic+chord).midinotename.asString);
+						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));						scaleChordString.string_((tonic+chord).midinotename.asString);
 						chord.postln;
 					});
 				})
@@ -327,25 +307,10 @@ TuningTheory {
 					//fString.string_(key.asString++"  :  "++key.midinotename);
 					mousesynth.set(\gate, 0);
 					if(playMode, {
-						key.postln;
 						this.setGridNode(lastkey, 0);
 						this.setGridNode(key, 1);
 						lastkey = key;
-						//(note.midicps)*tuningratios.wrapAt(note-(tonic%12)).postln;
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
-//							if(timerReadyFlag, { 
-//								timerReadyFlag = false;
-//								thistime = TempoClock.default.beats;
-//							});
-//							if(noteRecFlag, {
-//								freqArray = freqArray.add((note.trunc(12)+(tuning.semitones[note%12])).midicps);
-//								ampArray = ampArray.add(0.2); // rounding - no need for 5 tail numbers
-//								timesincelastkey = (TempoClock.default.beats-thistime).round(0.25);
-//								thistime = TempoClock.default.beats;
-//								durArray = durArray.add(timesincelastkey);
-//								sustainDict.add(note -> thistime.copy); // EXP
-//								sustainArray = sustainArray.add(nil); // EXP - this is a dummy to be replaced
-//							});
 					},{	
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 						scaleChordString.string_((tonic+chord).midinotename.asString);
@@ -355,23 +320,7 @@ TuningTheory {
 					var downtime;
 					mousesynth.set(\gate, 0); 
 					this.setGridNode(key, 0);
-					//fString.string_(key.asString++"  :  "++key.midinotename);
-					if(playMode, {
-//							if(noteRecFlag, {
-//								downtime = sustainDict.at(note);
-//								//[\downtime, downtime].postln;
-//								timesincelastkey = (TempoClock.default.beats-downtime).round(0.25);
-//								//[\timesincelastkey, timesincelastkey].postln;
-//								//if((timesincelastkey == 0) || (timesincelastkey < 0), {timesincelastkey = 0.125});
-//								// sustainArray = sustainArray.add(timesincelastkey);
-//								sustainArray = sustainArray.collect({arg item, i; 
-//												if((item==nil) && ((note.trunc(12)+(tuning.semitones[note%12])).midicps==freqArray[i]),
-//													 { timesincelastkey }, 
-//													 {item}); 
-//											});
-//							});
-						
-					},{
+					if(playMode.not, {
 						tonic = key;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 						scaleChordString.string_((tonic+chord).midinotename.asString);
@@ -397,24 +346,6 @@ TuningTheory {
 				.background_(Color.white)
 				.action_({arg item;
 					this.synth_(synthdefs[item.value].asSymbol);
-
-				//	synth = synthdefs[item.value].asSymbol;
-				//	"synth is : ".post; synth.postln;
-//					if(patternPlaying, {
-//								pattern = Pdef(\pattern,
-//									Pbind(
-//										\instrument, synthname, 
-//										\freq, Pseq(freqArray, inf), 
-//										\dur, Pseq(durArray, inf),
-//										\amp, Pseq(ampArray, inf), 
-//										\sustain, Pseq(sustainArray, inf),
-//										\out, outbus
-//										)
-//									).play(quant:4);
-//									
-//								" ************  Generated Pattern : ".postln;
-//								("Pbind(\\instrument, " ++ "\\" ++ synthname.asString ++ ", \\freq, Pseq(" ++ freqArray.asString ++ ", inf), \\dur, Pseq(" ++ durArray.asString ++ ", inf), \\amp, Pseq(" ++ ampArray.asString ++ ", inf), \\sustain, Pseq(" ++ sustainArray.asString ++", inf)).play" ).postln;
-//					});
 				});
 		
 		outbusmenu = PopUpMenu.new(win,Rect(115,31,45,16))
@@ -519,7 +450,7 @@ TuningTheory {
 					if (unicode == 16rF702, { view.valueAction_(view.value+1) });
 				});
 		
-		OSCIIRadioButton.new(win, Rect(300, 5, 12, 12), "play mode")
+		TuningRadioButton.new(win, Rect(300, 5, 12, 12), "play mode")
 			.font_(Font.new("Helvetica", 9))
 			.value_(1)
 			.action_({arg sl; 
@@ -574,42 +505,38 @@ TuningTheory {
 			.font_(Font.new("Helvetica", 9))
 			.states_([["tuning ratios", Color.black, Color.clear]])
 			.action_({
-				var ratiolisttext, lastselection, degreeslotmenu;
+				var ratiolisttext, lastselection, degreeslotmenu, roundmultiple;
 				var tuningslider, tuningnumber;
 				var slot=1;
 				var offset = tuningratios[slot];
-
+				
+				roundmultiple = 1e-13;
 				ratiowin = Window.new("ratios", Rect(win.bounds.left, win.bounds.top-220, 600, 190)).front;
 				ratiotext= TextView.new(ratiowin, Rect(10, 10, 580, 50));
 				ratiotext.string_(this.findRatios(tuningratios).asString);
+				ratiotext.mouseDownAction_({ lastratiolisttext = ratiolisttext.string });
 				ratiotext.keyDownAction_({arg view, key, modifiers, unicode, keycode;
-					[\view, view, \key, key, modifiers, unicode, keycode].postln;
 					lastselection = "ratiotext";
-					if(keycode == 36, { // ENTER
-						"ENTER".postln;
-						ratiolisttext.string_(tuningratios.asCompileString);
+					if((keycode == 36) || (keycode == 13), { // ENTER or evaluate (Shift+ENTER)
 						this.tuning_(ratiotext.string.interpret);
+						ratiolisttext.string_(tuningratios.asCompileString);
 						offset = tuningratios[slot];
 						tuningslider.value_(0.5);
 					});
 				});
 				ratiolisttext= TextView.new(ratiowin, Rect(10, 70, 580, 50));
 				ratiolisttext.string = tuningratios.asCompileString;
+				ratiolisttext.mouseDownAction_({ lastratiolisttext = ratiolisttext.string });
 				ratiolisttext.keyDownAction_({arg view, key, modifiers, unicode, keycode;
-					[\view, view, \key, key, modifiers, unicode, keycode].postln;
 					lastselection = "ratiolisttext";
-					if(keycode == 36, { // ENTER
-						"ENTER".postln;
-						ratiotext.string_(this.findRatios(tuningratios).asString);
+					if((keycode == 36) || (keycode == 13), { // ENTER or evaluate (Shift+ENTER)
 						this.tuning_(ratiolisttext.string.interpret);
+						ratiotext.string_(this.findRatios(tuningratios).asString);
 						offset = tuningratios[slot];
 						tuningslider.value_(0.5);
 					});
 				});
-			//	ratiowinFlag = true;
-			//	ratiowin.onClose({ ratiowinFlag = false });
-		[\items, 	{arg i; i}!tuningratios.size].postln;
-				degreeslotmenu = PopUpMenu.new(ratiowin,Rect(10,130, 30,16))
+				degreeslotmenu = PopUpMenu.new(ratiowin,Rect(10,133, 30,16))
 					.font_(Font.new("Helvetica", 9))
 					.items_({arg i; (i+1).asString}!(tuningratios.size-1))
 					.background_(Color.white)
@@ -617,26 +544,58 @@ TuningTheory {
 						slot = item.value+1;
 						offset = tuningratios[slot];
 						tuningslider.value_(0.5);
-					//	tuningnumber.value_(tuningratios[slot]);
-						[\slot, slot].postln;
 					});
-				tuningslider = Slider.new(ratiowin, Rect(45,130, 210,16))
+				tuningslider = Slider.new(ratiowin, Rect(45, 132, 250,16))
 					.value_(0.5)
+					.mouseDownAction_({ lastratiolisttext = ratiolisttext.string })
 					.action_({arg sl;
-						tuningratios[slot] = offset + sl.value.linlin(0, 1, -0.01, 0.01);
+						tuningratios[slot] = (offset + sl.value.linlin(0, 1, -0.01, 0.01)).round(roundmultiple);
 						ratiotext.string_(this.findRatios(tuningratios).asString);
 						ratiolisttext.string_(tuningratios.asCompileString);
-					//	this.drawRatios(ratiotext.string.interpret);
 						this.tuning_(ratiotext.string.interpret);
 					});
-				Button.new(ratiowin, Rect(280, 130, 70, 20))
+				StaticText.new(ratiowin, Rect(10, 155, 100, 20)).string_("ratio res :")
+						.font_(Font.new("Helvetica", 9));
+				PopUpMenu.new(ratiowin,Rect(60, 158, 30,16))
+					.font_(Font.new("Helvetica", 9))
+					.items_(["3","4","5","6","7","8","9","10","11","12","13"])
+					.value_(10)
+					.background_(Color.white)
+					.action_({arg menu;
+						roundmultiple = ("1e-"++(menu.value+3)).interpret; // 0.001, 0.0001, 0.00001, etc.
+					});
+				Button.new(ratiowin, Rect(150, 155, 70, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["undo", Color.black, Color.clear]])
+					.action_({
+						this.tuning_(lastratiolisttext.interpret);
+						ratiolisttext.string_(tuningratios.asCompileString);
+						ratiotext.string_(this.findRatios(tuningratios).asString);
+						tuningslider.value_(0.5);
+						offset = tuningratios[slot];
+					});
+				Button.new(ratiowin, Rect(225, 155, 70, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["confirm", Color.black, Color.clear]])
+					.action_({
+						if(lastselection == "ratiotext", {
+							ratiolisttext.string_(tuningratios.asCompileString);
+							this.tuning_(ratiotext.string.interpret);
+						}, {
+							ratiotext.string_(this.findRatios(ratiolisttext.string.interpret).asString);
+							this.tuning_(ratiolisttext.string.interpret);
+							tuningslider.value_(0.5);
+							offset = tuningratios[slot];
+						});
+					});
+				Button.new(ratiowin, Rect(305, 130, 65, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["post cents", Color.black, Color.clear]])
 					.action_({
 						" ------- Current tuning in cents ------- ".postln;
 						((tuningratios.ratiomidi.round(0.00001) *100)).postln;
 				});
-				Button.new(ratiowin, Rect(355, 130, 70, 20))
+				Button.new(ratiowin, Rect(375, 130, 65, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["get ratios", Color.black, Color.clear]])
 					.action_({
@@ -644,13 +603,13 @@ TuningTheory {
 						ratiolisttext.string_(tuningratios.asCompileString);
 						degreeslotmenu.items_({arg i; (i+1).asString}!(tuningratios.size-1));
 					});
-				Button.new(ratiowin, Rect(430, 130, 70, 20))
+				Button.new(ratiowin, Rect(445, 130, 65, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["draw ratios", Color.black, Color.clear]])
 					.action_({
 						this.drawRatios(ratiotext.string.interpret);
 					});
-				Button.new(ratiowin, Rect(505, 130, 85, 20))
+				Button.new(ratiowin, Rect(515, 130, 75, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["try ratios", Color.black, Color.clear]])
 					.action_({
@@ -668,21 +627,20 @@ TuningTheory {
 					.font_(Font.new("Helvetica", 9))
 					.states_([["make Scala file", Color.black, Color.clear]])
 					.action_({arg butt;
-						var scalewin, scaletext, scaletrybutt, scalesavebutt, scalastring;
+						var scaletext, scaletrybutt, scalesavebutt, scalastring;
 						scalewin = Window.new("scala tuning", Rect(ratiowin.bounds.left+ratiowin.bounds.width+10, win.bounds.top-430, 610, 400)).front;
 						scaletext= TextView.new(scalewin, Rect(10, 10, 590, 350));
 						Button.new(scalewin, Rect(10, 370, 120, 20))
 										.font_(Font.new("Helvetica", 9))
 										.states_([["Scala information", Color.black, Color.clear]])
 										.action_({
-											Document.new.string_("THE SCALA FILE FORMAT \n\nSee info here: http://www.huygens-fokker.org/scala/scl_format.html\n\n
+											Document.new.string_("\nTHE SCALA FILE FORMAT \n\nSee info here: http://www.huygens-fokker.org/scala/scl_format.html\n
 Here is an example of a valid file. Note:\n
 - The first line is the scale name
 - The third line is the description of the scale
 - the fourthe line is the number of degrees in the scale
 - then we have the ratios, line by line 
-- the 1/1 (first degree) is skipped and it's possible to mix rational numbers and cents
-\n
+- the 1/1 (first degree) is skipped and it's possible to mix rational numbers and cents\n
 ----------------------------------------------
 ! meanquar.scl
 !
@@ -701,7 +659,8 @@ Here is an example of a valid file. Note:\n
 1006.84314
 1082.89214
 2/1
-----------------------------------------------").promptToSave_(false);
+----------------------------------------------\n
+When you save a Scala file, it will saved under the name you give your scale in the first line.\nIt will be saved in the scl_user folder (as not to mix with the official Huygens-Fokker archive)").promptToSave_(false);
 										});
 						scaletrybutt = Button.new(scalewin, Rect(410, 370, 80, 20))
 										.font_(Font.new("Helvetica", 9))
@@ -750,28 +709,25 @@ scalastring = scalastring ++ "2/1";
 		// plot the frequency of strings played
 		win.view.keyDownAction_({|me, char|
 			if(char == $a, {
-				{patRecButt.valueAction_(1)}.defer;
+				//{patRecButt.valueAction_(1)}.defer;
 			})	
 		});
 		
 		win.view.keyUpAction_({|me, char|
 			if(char == $a, {
-				" ************ your recorded frequency array is : ".postln;
-				{patRecButt.valueAction_(2)}.defer;
-		
-		//		freqArray.postln;
-		//		noteRecFlag = false;
-		//		freqArray = [];
+
 			})	
 		});
 		
 		win.onClose_({
-			"Good bye! - All responders removed".postln;
+			"Good bye GUI !".postln;
 		//	noteonresponder.remove;
 		//	noteoffresponder.remove;
 		//	recordarrayresp.remove;
 		//	pattern.stop;
 		//	metronome.stop;
+			if(ratiowin.isClosed.not, {ratiowin.close;});
+			if(scalewin.isClosed.not, {scalewin.close;});
 			notes.do({arg synth; synth.release });
 			gridnotes.do({arg array; array.do({arg synth; synth.release }) });
 			Server.default.freeAll;
@@ -799,11 +755,19 @@ a.tuning = \et12
 a = TuningTheory.new
 a.createGUI
 a.postLists
+
 // draw ratios
 a.drawRatios([9/8, 81/64, 4/3, 3/2, 27/16, 243/128, 2/1])
 a.drawRatios([]) // eraze lines that are already drawn
-// set ratios (if not using GUI)
-a.tuning_([9/8, 81/64, 4/3, 3/2, 27/16, 243/128, 2/1])
+
+a = TuningTheory.new
+a.createGUI
+a.tuning
+
+a.tuning = \vallotti
+a.tuning = [ 1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8 ]
+
+a.postLists
 
 
 
@@ -827,9 +791,22 @@ a.tuning = \burt20
 a.tuning = \cairo // ah! the problem is that I need to use the octaveRatio instead of 12 in drawing
 
 
+a = TuningTheory.new
+a.createGUI
+a.tuning
+
+a.tuning = \vallotti
+a.tuning = [ 1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8 ]
+
+a.postLists
 
 
-
+// play something on midi keyboard
+a.noteRecArray // this is what you played
+// record a new array of midinotes:
+a.noteRecArray = []
+// explore it
+a.noteRecArray
 
 
 */
