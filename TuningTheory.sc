@@ -300,6 +300,11 @@ TuningTheory {
 						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scale
 						pitchCircle.drawSet(chord, tonic%12);
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));						scaleChordString.string_((tonic+chord).midinotename.asString);
+						chord.do({arg degree; 
+							var chordkey = degree + key;
+							notes[chordkey] = Synth(synth, [\out, outbus, \freq, this.calcFreq(chordkey), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend], target:group);
+							this.setGridNode(chordkey, 1);
+						});
 						chord.postln;
 					});
 				})
@@ -312,18 +317,27 @@ TuningTheory {
 						lastkey = key;
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 					},{	
+						notes.do({arg synth; synth.release });
+						tuninggrid.clearGrid;
+						chord.do({arg degree; 
+							var chordkey = degree + key;
+							notes[chordkey] = Synth(synth, [\out, outbus, \freq, this.calcFreq(chordkey), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend], target:group);
+							this.setGridNode(chordkey, 1);
+						});
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 						scaleChordString.string_((tonic+chord).midinotename.asString);
 					});
 				})
 				.keyUpAction_({arg key; 
-					var downtime;
-					mousesynth.set(\gate, 0); 
-					this.setGridNode(key, 0);
-					if(playMode.not, {
+					if(playMode, {
+						mousesynth.set(\gate, 0); 
+						this.setGridNode(key, 0);
+					}, {
 						tonic = key;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 						scaleChordString.string_((tonic+chord).midinotename.asString);
+						notes.do({arg synth; synth.release });
+						tuninggrid.clearGrid;
 					});
 				});
 		
