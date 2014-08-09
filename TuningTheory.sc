@@ -274,7 +274,7 @@ TuningTheory {
 	
 	createGUI {
 		var midiclientmenu, synthdefmenu, outbusmenu, tuningmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
-		var chordmenu, scalemenu, play, mousesynth;
+		var chordmenu, scalemenu, play, mousesynth, tuningreftext;
 		var chords, scales, tunings, chordnames, chord, scalenames, scale;
 		var playMode, playmodeSC, lastkey;
 		var ratiowin, scalewin, ratiotext;
@@ -291,13 +291,14 @@ TuningTheory {
 		keybview = MIDIKeyboard.new(win, Rect(10, 60, 990, 160), 5, 36)
 				.keyDownAction_({arg key; 
 					fString.string_(key.asString++"  :  "++key.midinotename);
+					lastkey = key;
 					if(playMode, {
 						this.setGridNode(key, 1);
 						noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 					}, {
 						tonic = key; 
-						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scale
+//						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scale
 						pitchCircle.drawSet(chord, tonic%12);
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));						scaleChordString.string_((tonic+chord).midinotename.asString);
 						chord.do({arg degree; 
@@ -311,10 +312,10 @@ TuningTheory {
 				.keyTrackAction_({arg key; tonic = key; 
 					//fString.string_(key.asString++"  :  "++key.midinotename);
 					mousesynth.set(\gate, 0);
+					lastkey = key;
 					if(playMode, {
 						this.setGridNode(lastkey, 0);
 						this.setGridNode(key, 1);
-						lastkey = key;
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 					},{	
 						notes.do({arg synth; synth.release });
@@ -333,7 +334,7 @@ TuningTheory {
 						mousesynth.set(\gate, 0); 
 						this.setGridNode(key, 0);
 					}, {
-						tonic = key;
+						//tonic = key;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 						scaleChordString.string_((tonic+chord).midinotename.asString);
 						notes.do({arg synth; synth.release });
@@ -374,16 +375,16 @@ TuningTheory {
 		
 		pitchCircle = XiiTuningPitchCircle.new(12, size:200, win: win);
 		
-		fundNoteString = StaticText.new(win, Rect(540, 5, 100, 20)).string_("tonic :")
+		fundNoteString = StaticText.new(win, Rect(700, 5, 100, 20)).string_("tonic :")
 						.font_(Font.new("Helvetica", 9));
 						
-		fString = StaticText.new(win, Rect(590, 5, 50, 20))
+		fString = StaticText.new(win, Rect(750, 5, 50, 20))
 					.string_(tonic.asString++"  -  "++tonic.midinotename)
 					.font_(Font.new("Helvetica", 9));
 		
-		scaleOrChord = StaticText.new(win, Rect(540, 30, 100, 20)).string_("Chord :")
+		scaleOrChord = StaticText.new(win, Rect(700, 30, 100, 20)).string_("chord :")
 						.font_(Font.new("Helvetica", 9));
-		scaleChordString = StaticText.new(win, Rect(590, 30, 250, 20))
+		scaleChordString = StaticText.new(win, Rect(750, 30, 250, 20))
 						.string_(tonic.asString++"  -  "++tonic.midinotename)
 						.font_(Font.new("Helvetica", 9));
 		
@@ -469,12 +470,14 @@ TuningTheory {
 			.value_(1)
 			.action_({arg sl; 
 				playMode = sl.value.booleanValue;
+				/*
 				if(playMode, {
 					keybview.clear;
 					fundNoteString.string_("Note :")
 				}, {
 					fundNoteString.string_("tonic :")
 				});
+				*/
 			});
 		
 		play = Button.new(win,Rect(420,5,90,18))
@@ -505,7 +508,7 @@ TuningTheory {
 						tempchord = chord ++ 12;
 						tempchord.mirror.do({arg key;
 							{var a;
-							key = key + 48;
+							key = key + tonic;
 							a = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 							0.3.wait;
 							a.release}.fork;
@@ -514,6 +517,22 @@ TuningTheory {
 					})
 				}).start;
 			});
+
+		// xxx
+		Button.new(win,Rect(520,5,120,18))
+			.font_(Font.new("Helvetica", 9))
+			.states_([["make last note tuning ref", Color.black, Color.clear]])
+			.action_({
+				[\tonic, tonic].postln;
+				[\lastkey, lastkey].postln;
+				tuningreference = lastkey % 12; // this is the reference for non-et12 tempered scale
+				[\tuningreference, tuningreference].postln;
+				tuningreftext.string_("tuning ref : "++ lastkey.asString +":"+ lastkey.midinotename);
+			});
+		
+		tuningreftext = StaticText.new(win, Rect(534, 30, 120, 20)).string_("tuning ref : 60 - C3")
+						.font_(Font.new("Helvetica", 9));
+
 		
 		Button.new(win, Rect(420,31,90,18))
 			.font_(Font.new("Helvetica", 9))
