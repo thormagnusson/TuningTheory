@@ -20,7 +20,7 @@ TuningTheory {
 		tonic = 60;
 		pitchBend = 1;
 		outbus = 0;
-		synthdefs = [\saw, \moog];
+		synthdefs = [\saw, \sine, \moog];
 		synth = synthdefs[0];
 		chordArray = []; // current notes
 		noteRecArray = [];
@@ -111,6 +111,12 @@ TuningTheory {
 		SynthDef(\saw, {arg out=0, freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
 			var signal, env;
 			signal = LPF.ar(Saw.ar([freq, freq]*pitchBend, XLine.ar(0.7, 0.9, 0.13)), (cutoff * freq).min(18000));
+			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
+			Out.ar(out, signal*env);
+		}).add;
+		SynthDef(\sine, {arg out=0, freq=440, amp=0.5, gate=1, pitchBend=1, cutoff=20, vibrato=0;
+			var signal, env;
+			signal = SinOsc.ar([freq, freq]*pitchBend, 0, XLine.ar(0.7, 0.9, 0.13));
 			env = EnvGen.ar(Env.adsr(0), gate, levelScale: amp, doneAction:2);
 			Out.ar(out, signal*env);
 		}).add;
@@ -300,7 +306,8 @@ TuningTheory {
 						tonic = key; 
 //						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scale
 						pitchCircle.drawSet(chord, tonic%12);
-						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));						scaleChordString.string_((tonic+chord).midinotename.asString);
+						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
+						scaleChordString.string_((tonic+chord).midinotename.asString);
 						chord.do({arg degree; 
 							var chordkey = degree + key;
 							notes[chordkey] = Synth(synth, [\out, outbus, \freq, this.calcFreq(chordkey), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend], target:group);
@@ -318,7 +325,8 @@ TuningTheory {
 						this.setGridNode(key, 1);
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 					},{	
-						notes.do({arg synth; synth.release });
+						notes.do({arg synth; if(synth != nil, {synth.release; synth = nil}) });
+						pitchCircle.drawSet(chord, tonic%12);
 						tuninggrid.clearGrid;
 						chord.do({arg degree; 
 							var chordkey = degree + key;
@@ -337,7 +345,7 @@ TuningTheory {
 						//tonic = key;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 						scaleChordString.string_((tonic+chord).midinotename.asString);
-						notes.do({arg synth; synth.release });
+						notes.do({arg synth; if(synth != nil, {synth.release; synth = nil}) });
 						tuninggrid.clearGrid;
 					});
 				});
@@ -346,6 +354,7 @@ TuningTheory {
 
 		midiclientmenu = PopUpMenu.new(win,Rect(10,5,150,16))
 				.font_(Font.new("Helvetica", 9))
+				.canFocus_(false)
 				.items_(MIDIClient.sources.collect({arg item; item.device + item.name}))
 				.value_(0)
 				.background_(Color.white)
@@ -357,6 +366,7 @@ TuningTheory {
 		synthdefmenu = PopUpMenu.new(win,Rect(10,31,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(synthdefs)
+				
 				.value_(synthdefs.indexOf(synth))
 				.background_(Color.white)
 				.action_({arg item;
@@ -368,6 +378,7 @@ TuningTheory {
 				.items_({|i| ((i*2).asString++","+((i*2)+1).asString)}!26)
 				.value_(0)
 				.background_(Color.white)
+				.canFocus_(false)
 				.action_({arg item;
 					outbus = item.value * 2;
 					"outbus is : ".post; outbus.postln;
@@ -518,7 +529,6 @@ TuningTheory {
 				}).start;
 			});
 
-		// xxx
 		Button.new(win,Rect(520,5,120,18))
 			.font_(Font.new("Helvetica", 9))
 			.states_([["make last note tuning ref", Color.black, Color.clear]])
@@ -536,6 +546,7 @@ TuningTheory {
 		
 		Button.new(win, Rect(420,31,90,18))
 			.font_(Font.new("Helvetica", 9))
+			.canFocus_(false)
 			.states_([["tuning ratios", Color.black, Color.clear]])
 			.action_({
 				var ratiolisttext, lastselection, degreeslotmenu, roundmultiple;
@@ -729,8 +740,18 @@ scalastring = scalastring ++ "2/1";
 						scaletext.string = scalastring;
 			});
 		});
+		
+		Button.new(win,Rect(1008, 310, 90, 18))
+			.font_(Font.new("Helvetica", 9))
+			.canFocus_(false)
+			.states_([["clear keyboard", Color.black, Color.clear]])
+			.action_({
+				keybview.clear;
+			});
+			
 		Button.new(win,Rect(1008, 335, 90, 18))
 			.font_(Font.new("Helvetica", 9))
+			.canFocus_(false)
 			.states_([["clear grid", Color.black, Color.clear]])
 			.action_({
 				tuninggrid.clearGrid;
