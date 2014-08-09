@@ -58,7 +58,7 @@ TuningGrid {
 		.drawFunc_({
 
 			backgrDrawFunc.value; // background draw function
-		});
+		}).canFocus_(false);
 		
 		mouseTracker = UserView.new(win, Rect(bounds.left, bounds.top, bounds.width+1, bounds.height+1));
  		//bounds = mouseTracker.bounds;
