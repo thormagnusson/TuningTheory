@@ -46,18 +46,38 @@ TuningTheory {
 			notes = notes.collect({arg synth; if(synth != nil, { synth.release; synth = nil})  });
 			gridnotes = gridnotes.collect({arg array; array.collect({arg synth; synth.release; }) });
 			gridnotes = {{nil}!semitones.size}!6;
+			group = Group.new;
 		 });
 
 	}
 	
-	findChord { arg chordArray;
-		block{|break| 
-			XiiTheory.chords.do({arg chord; if(chord[1] == chordArray, {
-				"Current Chord is : ".post; chord[0].postln;
-				chord[1].postln;
-				break.value();
-			})}); 
-		}
+	findChord { arg chordArr;
+		var thischord, original, orgnl;
+		if(chordArr.size>1, {
+			original = chordArr.sort;
+			thischord = ((chordArr-chordArr.minItem)%12).sort;
+			block{|break| 
+				XiiTuningTheory.chords.do({arg chord;
+					orgnl = original.copy;
+					thischord.size.do({arg i;
+						if(chord[1] == thischord, {
+							"Current Chord is : ".post; 
+							this.midinotenameSinOctave(orgnl[0]).post; 
+							"-".post; 
+							chord[0].post; 
+							" - ".post; 
+							chord[1].postln;
+							break.value();
+						}, {
+							thischord[0] = thischord[0]+12; // rotate lowest key an octave up
+							thischord = ((thischord-thischord.minItem)%12).sort;
+							orgnl[0] = orgnl[0]+12;
+							orgnl = orgnl.sort;
+						});
+					});
+				}); 
+			}
+		});
 	}
 	
 	checkPaths {
@@ -81,7 +101,8 @@ TuningTheory {
 		MIDIdef.noteOn(\myOndef, {arg vel, key, channel, device;
 			// we use the key as index into the array as well
 			notes[key] = Synth(synth, [\out, outbus, \freq, this.calcFreq(key), \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
-			chordArray = chordArray.add(key%12).sort;
+			chordArray = chordArray.add(key);
+			[\chordArray, chordArray].postln;
 			noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
 			
 			this.findChord(chordArray);
@@ -94,7 +115,8 @@ TuningTheory {
 		MIDIdef.noteOff(\myOffdef, {arg vel, key, channel, device;
 			notes[key].release;
 			notes[key] = nil;
-			chordArray.remove(key%12);
+			chordArray.remove(key);
+		[\chordArray, chordArray].postln;
 			this.findChord(chordArray);
 			if( gui, { { 
 				keybview.keyUp( key );
@@ -308,6 +330,10 @@ TuningTheory {
 	
 	midinotename {arg key;
 		^["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][key%12]++((key/12).floor-2).asInt;
+	}
+
+	midinotenameSinOctave {arg key;
+		^["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][key%12];
 	}
 
 	createGUI {
