@@ -24,7 +24,11 @@ TuningTheory {
 		synth = synthdefs[0];
 		chordArray = []; // current notes
 		noteRecArray = [];
-		
+
+		notes = Array.fill(1270, { nil }); // just make this very big (for 12+notesinanoctave tuning support)
+		nodestates = {{0}!12}!6;
+		gridnotes = {{nil}!12}!6;
+
 		gui = false; // no GUI by default
 
 		MIDIIn.connectAll; // we connect all the incoming devices
@@ -34,15 +38,45 @@ TuningTheory {
 			this.makeSynths();
 			this.midiSetup();
 			this.tuning_(\et12);
+			group = Group.new; //  create a Group to be able to set cutoff of all active notes
+		});
+
+		CmdPeriod.add({ 			
+			"CMD period".postln;
+			notes = notes.collect({arg synth; if(synth != nil, { synth.release; synth = nil})  });
+			gridnotes = gridnotes.collect({arg array; array.collect({arg synth; synth.release; }) });
+			gridnotes = {{nil}!semitones.size}!6;
+		 });
+
+	}
+	
+	findChord { arg chordArray;
+		block{|break| 
+			XiiTheory.chords.do({arg chord; if(chord[1] == chordArray, {
+				"Current Chord is : ".post; chord[0].postln;
+				chord[1].postln;
+				break.value();
+			})}); 
+		}
+	}
+	
+	checkPaths {
+		 
+		var pathToSclDir = Platform.userAppSupportDir+/+"scl/"; // the location of the Scala library
+		var pathToUserSclDir =  Platform.userAppSupportDir+/+"scl_user/"; // user Scala scales library
+		if(pathToSclDir.pathMatch==[], {
+			("mkdir -p" + pathToSclDir.quote).unixCmd;
+			"ixi-NOTE: a Scala scales folder was not found, it was created here:".postln;
+			pathToSclDir.postln;
+		});
+		if(pathToUserSclDir.pathMatch==[], {
+			("mkdir -p" + pathToUserSclDir.quote).unixCmd;
+			"ixi-NOTE: an user Scala folder was not found, it was created here:".postln;
+			pathToUserSclDir.postln;
 		});
 	}
 	
 	midiSetup {
-				
-		notes = Array.fill(1270, { nil }); // just make this very big (for 12+notesinanoctave tuning support)
-		nodestates = {{0}!12}!6;
-		gridnotes = {{nil}!12}!6;
-		group = Group.new; // we create a Group to be able to set cutoff of all active notes
 
 		MIDIdef.noteOn(\myOndef, {arg vel, key, channel, device;
 			// we use the key as index into the array as well
@@ -50,12 +84,7 @@ TuningTheory {
 			chordArray = chordArray.add(key%12).sort;
 			noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
 			
-			block{|break| XiiTheory.chords.do({arg chord; if(chord[1] == chordArray, {
-				"Current Chord is : ".post; chord[0].postln;
-				chord[1].postln;
-				break.value();
-				})}); };
-				
+			this.findChord(chordArray);
 			if(gui, {	 {
 				keybview.keyDown(key);
 				this.setGridNode(key, 1);
@@ -66,6 +95,7 @@ TuningTheory {
 			notes[key].release;
 			notes[key] = nil;
 			chordArray.remove(key%12);
+			this.findChord(chordArray);
 			if( gui, { { 
 				keybview.keyUp( key );
 				this.setGridNode(key, 0);
@@ -86,7 +116,7 @@ TuningTheory {
 
 		MIDIdef.bend(\myVibrato, { arg val;
 			notes.do({arg synth;
-				if( synth != nil , {  });
+				if( synth != nil , { synth.set(\vibrato, val.linlin(0, 127, 1, 20) ) });
 			});
 			gridnotes.do({arg array;
 				array.do({arg synth;
@@ -160,12 +190,11 @@ TuningTheory {
 				tuningratios = (tuning/100).midiratio;
 			}, {	// the array is in rational numbers (or floating point ratios from 1 to 2)
 				tuningratios = tuning;
-				"in here ! !!! ! !  !".postln;
 			});
 			semitones = tuningratios.ratiomidi;
 		}, {
 			temptuning = Tuning.newFromKey(argtuning.asSymbol); 
-			if(temptuning.isNil, { temptuning = XiiScala.new(argtuning) }); // support of the Scala scales / tunings
+			if(temptuning.isNil, { temptuning = XiiScala.new(argtuning.asSymbol) }); // support of the Scala scales / tunings
 			tuningratios = temptuning.ratios;
 			semitones = temptuning.semitones;
 		});
@@ -234,7 +263,6 @@ TuningTheory {
 		tuninggrid.nodeDownAction_({arg nodeloc;
 			var note = (nodeloc[0]+((nodeloc[1]-6).abs*semitones.size))+(semitones.size*2)+tuningreference;
 			if(tuninggrid.getState(nodeloc[0], nodeloc[1]) == 1, {
-				gridnotes.postln;
 				if(gridnotes[nodeloc[1]][nodeloc[0]].isNil, {
 					gridnotes[nodeloc[1]][nodeloc[0]] = Synth(synth, [\freq, this.calcFreq( note ), \out, outbus, \pitchBend, pitchBend]);
 				});
@@ -278,6 +306,10 @@ TuningTheory {
 		^array.collect({arg ratio; 	(ratio.asFraction[0].asString +/+ ratio.asFraction[1].asString) });
 	}
 	
+	midinotename {arg key;
+		^["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][key%12]++((key/12).floor-2).asInt;
+	}
+
 	createGUI {
 		var midiclientmenu, synthdefmenu, outbusmenu, tuningmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
 		var chordmenu, scalemenu, play, mousesynth, tuningreftext;
@@ -296,7 +328,7 @@ TuningTheory {
 		
 		keybview = MIDIKeyboard.new(win, Rect(10, 60, 990, 160), 5, 36)
 				.keyDownAction_({arg key; 
-					fString.string_(key.asString++"  :  "++key.midinotename);
+					fString.string_(key.asString++"  :  "++this.midinotename(key));
 					lastkey = key;
 					if(playMode, {
 						this.setGridNode(key, 1);
@@ -306,8 +338,10 @@ TuningTheory {
 						tonic = key; 
 //						tuningreference = tonic % 12; // this is the reference for non-et12 tempered scale
 						pitchCircle.drawSet(chord, tonic%12);
+						notes = notes.collect({arg synth; if(synth != nil, {synth.release; synth = nil }) });
+						tuninggrid.clearGrid;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
-						scaleChordString.string_((tonic+chord).midinotename.asString);
+						scaleChordString.string_(this.midinotename(tonic+chord));
 						chord.do({arg degree; 
 							var chordkey = degree + key;
 							notes[chordkey] = Synth(synth, [\out, outbus, \freq, this.calcFreq(chordkey), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend], target:group);
@@ -318,23 +352,23 @@ TuningTheory {
 				})
 				.keyTrackAction_({arg key; tonic = key; 
 					//fString.string_(key.asString++"  :  "++key.midinotename);
-					mousesynth.set(\gate, 0);
 					lastkey = key;
+					tuninggrid.clearGrid;
 					if(playMode, {
+						mousesynth.set(\gate, 0);
 						this.setGridNode(lastkey, 0);
 						this.setGridNode(key, 1);
 						mousesynth = Synth(synth, [\freq, this.calcFreq(key), \out, outbus, \pitchBend, pitchBend]);
 					},{	
-						notes.do({arg synth; if(synth != nil, {synth.release; synth = nil}) });
+						notes = notes.collect({arg synth; if(synth != nil, {synth.release; synth = nil}) });
 						pitchCircle.drawSet(chord, tonic%12);
-						tuninggrid.clearGrid;
 						chord.do({arg degree; 
 							var chordkey = degree + key;
 							notes[chordkey] = Synth(synth, [\out, outbus, \freq, this.calcFreq(chordkey), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend], target:group);
 							this.setGridNode(chordkey, 1);
 						});
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
-						scaleChordString.string_((tonic+chord).midinotename.asString);
+						scaleChordString.string_(this.midinotename(tonic+chord));
 					});
 				})
 				.keyUpAction_({arg key; 
@@ -344,9 +378,9 @@ TuningTheory {
 					}, {
 						//tonic = key;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
-						scaleChordString.string_((tonic+chord).midinotename.asString);
-						notes.do({arg synth; if(synth != nil, {synth.release; synth = nil}) });
-						tuninggrid.clearGrid;
+						scaleChordString.string_(this.midinotename(tonic+chord));
+//						notes = notes.collect({arg synth; if(synth != nil, {synth.release; synth = nil}) });
+//						tuninggrid.clearGrid;
 					});
 				});
 		
@@ -381,7 +415,6 @@ TuningTheory {
 				.canFocus_(false)
 				.action_({arg item;
 					outbus = item.value * 2;
-					"outbus is : ".post; outbus.postln;
 				});
 		
 		pitchCircle = XiiTuningPitchCircle.new(12, size:200, win: win);
@@ -390,18 +423,18 @@ TuningTheory {
 						.font_(Font.new("Helvetica", 9));
 						
 		fString = StaticText.new(win, Rect(750, 5, 50, 20))
-					.string_(tonic.asString++"  -  "++tonic.midinotename)
+					.string_(tonic.asString++"  -  "++this.midinotename(tonic))
 					.font_(Font.new("Helvetica", 9));
 		
 		scaleOrChord = StaticText.new(win, Rect(700, 30, 100, 20)).string_("chord :")
 						.font_(Font.new("Helvetica", 9));
 		scaleChordString = StaticText.new(win, Rect(750, 30, 250, 20))
-						.string_(tonic.asString++"  -  "++tonic.midinotename)
+						.string_(tonic.asString++"  -  "++this.midinotename(tonic))
 						.font_(Font.new("Helvetica", 9));
 		
-		chords = XiiTheory.chords;
-		scales = XiiTheory.scales;
-		tunings = XiiTheory.tunings;
+		chords = XiiTuningTheory.chords;
+		scales = XiiTuningTheory.scales;
+		tunings = XiiTuningTheory.tunings;
 		
 		chordnames = [];
 		chords.do({arg item; chordnames = chordnames.add(item[0])});
@@ -416,11 +449,10 @@ TuningTheory {
 				.items_(chordnames)
 				.background_(Color.white)
 				.action_({arg item;
-					(tonic%12).postln;
 					play.states_([["play chord", Color.black, Color.clear]]);
 					chord = chords[item.value][1];
 					scaleOrChord.string_("Chord :");
-					scaleChordString.string_((tonic+chord).midinotename.asString);
+					scaleChordString.string_(this.midinotename(tonic+chord));
 					keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 					playmodeSC = "chord";
 					pitchCircle.drawSet(chord, tonic%12);
@@ -443,7 +475,7 @@ TuningTheory {
 					play.states_([["play scale", Color.black, Color.clear]]);
 					chord = scales[item.value][1];
 					scaleOrChord.string_("Scale :");
-					scaleChordString.string_((tonic+chord).midinotename.asString);
+					scaleChordString.string_(this.midinotename(tonic+chord));
 					keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 					playmodeSC = "scale";
 					pitchCircle.drawSet(chord, tonic%12);
@@ -461,11 +493,11 @@ TuningTheory {
 		
 		tuningmenu = PopUpMenu.new(win,Rect(300,31,100,16))
 				.font_(Font.new("Helvetica", 9))
-				.items_(tunings.collect({arg tuning; tuning[0]}))
+				.items_(tunings)
 				.background_(Color.white)
 				.action_({arg item;
-					tuning = tunings[item.value][0].asSymbol;
-					this.tuning_(tuning);
+					tuning = tunings[item.value];
+					this.tuning_(tuning.asSymbol);
 					win.refresh;
 				})
 				.keyDownAction_({arg view, key, mod, unicode; 
@@ -537,7 +569,7 @@ TuningTheory {
 				[\lastkey, lastkey].postln;
 				tuningreference = lastkey % 12; // this is the reference for non-et12 tempered scale
 				[\tuningreference, tuningreference].postln;
-				tuningreftext.string_("tuning ref : "++ lastkey.asString +":"+ lastkey.midinotename);
+				tuningreftext.string_("tuning ref : "++ lastkey.asString +":"+ this.midinotename(lastkey));
 			});
 		
 		tuningreftext = StaticText.new(win, Rect(534, 30, 120, 20)).string_("tuning ref : 60 - C3")
@@ -746,6 +778,7 @@ scalastring = scalastring ++ "2/1";
 			.canFocus_(false)
 			.states_([["clear keyboard", Color.black, Color.clear]])
 			.action_({
+				notes = notes.collect({arg synth; if(synth != nil, {synth.release; synth = nil }) });
 				keybview.clear;
 			});
 			
@@ -757,7 +790,7 @@ scalastring = scalastring ++ "2/1";
 				tuninggrid.clearGrid;
 				this.drawRatios([]); // empty drawing harmonics list
 				gridnotes.do({arg array; array.do({arg synth; synth.release }) });
-				gridnotes = {{nil}!12}!6;
+				gridnotes = {{nil}!semitones.size}!6;
 			});
 			
 		// plot the frequency of strings played
@@ -780,8 +813,8 @@ scalastring = scalastring ++ "2/1";
 		//	recordarrayresp.remove;
 		//	pattern.stop;
 		//	metronome.stop;
-			if(ratiowin.isClosed.not, {ratiowin.close;});
-			if(scalewin.isClosed.not, {scalewin.close;});
+			if(ratiowin.isClosed.not, { ratiowin.close });
+			if(scalewin.isClosed.not, { scalewin.close });
 			notes.do({arg synth; synth.release });
 			gridnotes.do({arg array; array.do({arg synth; synth.release }) });
 			Server.default.freeAll;

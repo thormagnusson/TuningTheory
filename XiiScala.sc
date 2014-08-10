@@ -13,14 +13,9 @@ a.pitchesPerOctave
 
 */
 
-XiiScala : Tuning {
+XiiScala {
 
-	var <pitchesPerOctave;
-	var pathToSclDir = "/Users/thm21/Library/Application Support/SuperCollider/scl/"; 
-	// Platform.userAppSupportDir+/+"scl/"; // the location of the Scale library
-	
-	var pathToUserSclDir = "/Users/thm21/Library/Application Support/SuperCollider/scl_user/"; 
-	// Platform.userAppSupportDir+/+"scl_user/"; // user collection of Scala scales
+	var <pitchesPerOctave, pathToSclDir, pathToUserSclDir;
 	
 	*new { | scl |
 		^super.new.readScl( scl.asString ); // convert it to string in case it's a symbol
@@ -28,7 +23,11 @@ XiiScala : Tuning {
 
 	readScl { | scl |
 		var file, lines, line, ratios, num, degrees;
-
+		var tuning, tuningClass, octaveRatio, name;
+		
+		pathToSclDir = Platform.userAppSupportDir+/+"scl/"; // the location of the Scale library
+		pathToUserSclDir =  Platform.userAppSupportDir+/+"scl_user/";
+		
 		tuning = [];
 		lines = [];
 		line = 0;
@@ -43,27 +42,25 @@ XiiScala : Tuning {
 			if(line.isNil.not, { if(line.contains("!").not, { lines = lines.add(line) }) });
 		});
 		file.close;
-		[\lines, lines].postln;
 		
 		name = lines.removeAt(0);
 		name = name.asString; // the first line will the the name
 		pitchesPerOctave = lines.removeAt(0).asInteger;
 		lines.do({|line|  // each scale pitch will be either in ratio or cents notation
-			if(line.contains(".").not, { // ratios
-					num = line.interpret.ratiomidi;
-					tuning = tuning ++ num;
-				}, { // cents 
-					num = line.asFloat;
-					num = num / 100;
-					tuning = tuning ++ num;
+			if(line.contains("/"), { // a rational number
+				num = line.interpret.ratiomidi;
+			}, { // cents 
+				num = line.asFloat / 100;
 			});
+				tuning = tuning.add(num);
 		});
 
-		tuning = tuning.addFirst(0); // the interval 1/1 is not explicitly stated in the .scl file
+		tuning = tuning.addFirst(0); // the interval 1/1 is not explicitly given in the .scl file
 		octaveRatio = tuning.pop.midiratio;
-		
-		degrees = Array.series(pitchesPerOctave, 0, 1);
-		^Scale(degrees, pitchesPerOctave, this, name);
-	}
 	
+		degrees = Array.series(pitchesPerOctave, 0, 1);
+		tuningClass = Tuning.new(tuning, octaveRatio, name);
+
+		^Scale(degrees, pitchesPerOctave, tuningClass, name);
+	}
 }

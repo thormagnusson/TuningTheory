@@ -37,3 +37,12 @@ a.tuning = [0, 177, 204, 240, 471, 444, 675, 702, 738, 969, 942, 1173] // the sa
 a.createGUI
 
 
+The TuningTheory supports the Huygens-Fokker Scala library (of more than 4000 tunings) which can be found here: 
+
+
+
+The default path to the Scala scales is in the user application support directory of SuperCollider (if you don't know where that is on your system, run this line: Platform.userAppSupportDir). 
+
+The software creates a "scl_user" directory for scales/tunings not in the Scala library and for user-created scales.
+
+The scl_user directory contains a file "_tuningmenu.scd" that is used for populating the "tuning" menu.
