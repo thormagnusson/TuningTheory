@@ -494,6 +494,10 @@ TuningTheory {
 		tuningmenu = PopUpMenu.new(win,Rect(300,31,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(tunings)
+				.mouseDownAction_({arg view;
+					tunings = XiiTuningTheory.tunings;
+					view.items_(tunings);
+				})
 				.background_(Color.white)
 				.action_({arg item;
 					tuning = tunings[item.value];
@@ -664,14 +668,7 @@ TuningTheory {
 							offset = tuningratios[slot];
 						});
 					});
-				Button.new(ratiowin, Rect(305, 130, 65, 20))
-					.font_(Font.new("Helvetica", 9))
-					.states_([["post cents", Color.black, Color.clear]])
-					.action_({
-						" ------- Current tuning in cents ------- ".postln;
-						((tuningratios.ratiomidi.round(0.00001) *100)).postln;
-				});
-				Button.new(ratiowin, Rect(375, 130, 65, 20))
+				Button.new(ratiowin, Rect(315, 130, 65, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["get ratios", Color.black, Color.clear]])
 					.action_({
@@ -679,13 +676,21 @@ TuningTheory {
 						ratiolisttext.string_(tuningratios.asCompileString);
 						degreeslotmenu.items_({arg i; (i+1).asString}!(tuningratios.size-1));
 					});
-				Button.new(ratiowin, Rect(445, 130, 65, 20))
+				Button.new(ratiowin, Rect(385, 130, 65, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["post cents", Color.black, Color.clear]])
+					.action_({
+						" ------- Current tuning in cents ------- ".postln;
+						((tuningratios.ratiomidi.round(0.00001) *100)).postln;
+				});
+//				Button.new(ratiowin, Rect(445, 130, 65, 20))
+				Button.new(ratiowin, Rect(315, 155, 65, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["draw ratios", Color.black, Color.clear]])
 					.action_({
 						this.drawRatios(ratiotext.string.interpret);
 					});
-				Button.new(ratiowin, Rect(515, 130, 75, 20))
+				Button.new(ratiowin, Rect(385, 155, 65, 20))
 					.font_(Font.new("Helvetica", 9))
 					.states_([["try ratios", Color.black, Color.clear]])
 					.action_({
@@ -699,9 +704,15 @@ TuningTheory {
 							offset = tuningratios[slot];
 						});
 					});
-				 Button.new(ratiowin, Rect(505, 155, 85, 20))
+				 Button.new(ratiowin, Rect(500, 130, 90, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["make Scala file", Color.black, Color.clear]])
+					.states_([["edit tuningmenu", Color.black, Color.clear]])
+					.action_({arg butt;
+						var tuningfilepath = Platform.userAppSupportDir+/+"scl_user/_tuningmenu.scd";						("open "++tuningfilepath.quote).unixCmd;
+					});
+				 Button.new(ratiowin, Rect(500, 155, 90, 20))
+					.font_(Font.new("Helvetica", 9))
+					.states_([["create Scala file", Color.black, Color.clear]])
 					.action_({arg butt;
 						var scaletext, scaletrybutt, scalesavebutt, scalastring;
 						scalewin = Window.new("scala tuning", Rect(ratiowin.bounds.left+ratiowin.bounds.width+10, win.bounds.top-430, 610, 400)).front;
