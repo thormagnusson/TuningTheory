@@ -63,7 +63,7 @@ TuningRadioButton {
 	
 	color_ {arg col;
 		fillcolor = col;
-		button.states_([["", Color.clear, Color.clear], ["", Color.clear,  fillcolor]]);
+		button.states_([["", Color.black, fillcolor], ["x", Color.black,  fillcolor]]);
 	}
 	
 	value {

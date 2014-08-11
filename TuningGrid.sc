@@ -130,30 +130,10 @@ TuningGrid {
 
 			// the column lines
 			columnsemitones.do({arg semitone;
-				//[\semitone, semitone].postln;
 				pen.line( // keep 12 in there (not semitones.size) as SC calculates semitones to 12
 					Point(semitone * (bounds.width/12), 0).round(1)+0.5, 
 					Point(semitone * (bounds.width/12), bounds.height).round(1)+0.5
 				);
-
-// working
-//				pen.line(
-//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), 0).round(1)+0.5, 
-//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), bounds.height).round(1)+0.5
-//				);
-
-//				pen.line(
-//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), 0).round(1)+0.5, 
-//					Point((bounds.width/((columnratios.sum/columnratios.size+1*2)))+(ratio*(bounds.width/((columnratios.sum/columnratios.size+1*2)))), bounds.height).round(1)+0.5
-//				);
-//				pen.line(
-//					Point(ratio*(bounds.width/(columnratios.sum/columnratios.size*2)), 0).round(1)+0.5, 
-//					Point(ratio*(bounds.width/(columnratios.sum/columnratios.size*2)), bounds.height).round(1)+0.5
-//				);
-//				pen.line(
-//					Point((bounds.width/(columns+1))+(ratio*(bounds.width/(columns+1))), 0).round(1)+0.5, 
-//					Point((bounds.width/(columns+1))+(ratio*(bounds.width/(columns+1))), bounds.height).round(1)+0.5
-//				);
 			});
 			
 			// the row lines

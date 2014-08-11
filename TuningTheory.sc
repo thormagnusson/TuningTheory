@@ -5,7 +5,7 @@
 
 TuningTheory {
 
-	var win, gui, keybview, tuninggrid, notes, gridnotes, group, tuningreference, tonic, pitchBend;
+	var win, gui, keybview, tuninggrid, notes, keyboardnotes, gridnotes, group, tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
 	var calcFreq, semitones, tuningratios, lastratiolisttext, nodestates, drawRatiosArray;
 	var <tuning, outbus, chordArray, <>noteRecArray;
@@ -26,6 +26,7 @@ TuningTheory {
 		noteRecArray = [];
 
 		notes = Array.fill(1270, { nil }); // just make this very big (for 12+notesinanoctave tuning support)
+		keyboardnotes = Array.fill(127, { nil }); // 
 		nodestates = {{0}!12}!6;
 		gridnotes = {{nil}!12}!6;
 
@@ -51,35 +52,6 @@ TuningTheory {
 
 	}
 	
-	findChord { arg chordArr;
-		var thischord, original, orgnl;
-		if(chordArr.size>1, {
-			original = chordArr.sort;
-			thischord = ((chordArr-chordArr.minItem)%12).sort;
-			block{|break| 
-				XiiTuningTheory.chords.do({arg chord;
-					orgnl = original.copy;
-					thischord.size.do({arg i;
-						if(chord[1] == thischord, {
-							"Current Chord is : ".post; 
-							this.midinotenameSinOctave(orgnl[0]).post; 
-							"-".post; 
-							chord[0].post; 
-							" - ".post; 
-							chord[1].postln;
-							break.value();
-						}, {
-							thischord[0] = thischord[0]+12; // rotate lowest key an octave up
-							thischord = ((thischord-thischord.minItem)%12).sort;
-							orgnl[0] = orgnl[0]+12;
-							orgnl = orgnl.sort;
-						});
-					});
-				}); 
-			}
-		});
-	}
-	
 	checkPaths {
 		 
 		var pathToSclDir = Platform.userAppSupportDir+/+"scl/"; // the location of the Scala library
@@ -100,9 +72,8 @@ TuningTheory {
 
 		MIDIdef.noteOn(\myOndef, {arg vel, key, channel, device;
 			// we use the key as index into the array as well
-			notes[key] = Synth(synth, [\out, outbus, \freq, this.calcFreq(key), \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
+			keyboardnotes[key] = Synth(synth, [\out, outbus, \freq, this.calcFreq(key), \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
 			chordArray = chordArray.add(key);
-			[\chordArray, chordArray].postln;
 			noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
 			
 			this.findChord(chordArray);
@@ -113,11 +84,10 @@ TuningTheory {
 		});
 
 		MIDIdef.noteOff(\myOffdef, {arg vel, key, channel, device;
-			notes[key].release;
-			notes[key] = nil;
+			keyboardnotes[key].release;
+			keyboardnotes[key] = nil;
 			chordArray.remove(key);
-		[\chordArray, chordArray].postln;
-			this.findChord(chordArray);
+			//this.findChord(chordArray);
 			if( gui, { { 
 				keybview.keyUp( key );
 				this.setGridNode(key, 0);
@@ -126,6 +96,10 @@ TuningTheory {
 
 		MIDIdef.cc(\myPitchBend, { arg val;
 			pitchBend = val.linlin(0, 127, 0.5, 1.5);
+			
+			keyboardnotes.do({arg synth;
+				if( synth != nil , { synth.set(\pitchBend, pitchBend ) });
+			});
 			notes.do({arg synth;
 				if( synth != nil , { synth.set(\pitchBend, pitchBend ) });
 			});
@@ -137,6 +111,9 @@ TuningTheory {
 		});
 
 		MIDIdef.bend(\myVibrato, { arg val;
+			keyboardnotes.do({arg synth;
+				if( synth != nil , { synth.set(\vibrato, val.linlin(0, 127, 1, 20) ) });
+			});
 			notes.do({arg synth;
 				if( synth != nil , { synth.set(\vibrato, val.linlin(0, 127, 1, 20) ) });
 			});
@@ -222,13 +199,18 @@ TuningTheory {
 		});
 
 		// keyboard notes
-		notes.do({arg synth, note;
+		keyboardnotes.do({arg synth, note;
 			if( synth != nil , { synth.set(\freq, this.calcFreq( note ) ) });
 		});
 
 		if(gui, { 
+			notes.do({arg synth, note;
+				if( synth != nil , { synth.set(\freq, this.calcFreq( note ) ) });
+			});			
+			
 			nodestates = tuninggrid.getNodeStates;
 			this.createTuningGrid( semitones );
+			
 			tuninggrid.gridNodes.do({arg array;
 				array.do({arg node;
 					if( node.state == true, { 
@@ -247,7 +229,37 @@ TuningTheory {
 		^((semitones++semitones)[((note-tuningreference)+semitones.size)%semitones.size]+tuningreference).midicps * [1,2,4,8,16,32,64,128,256,512].at((note-tuningreference).div(semitones.size));
 
 	}
-
+	
+	findChord { arg chordArr;
+		var thischord, original, orgnl;
+		if(chordArr.size>2, {
+			original = chordArr.sort;
+			thischord = ((chordArr-chordArr.minItem)%12).as(Set).as(Array).sort; // converting to Set temp - get rid of duplicates (e.g. oct above)
+			block{|break| 
+				XiiTuningTheory.chords.do({arg chord;
+					orgnl = original.copy;
+					thischord.size.do({arg i;
+						if(chord[1] == thischord, {
+							"Chord : ".post; 
+							this.midinotenameSinOctave(orgnl[0]).post; 
+							"-".post; 
+							chord[0].post; 
+							" - ".post; 
+							chord[1].postln;
+							break.value();
+						}, {
+							thischord[0] = thischord[0]+12; // rotate lowest key an octave up
+							thischord = ((thischord-thischord.minItem)%12).sort;
+							orgnl[0] = orgnl[0]+12;
+							orgnl = orgnl.sort;
+						});
+					});
+				});
+				"Chord : unknown".postln;
+			}
+		});
+	}
+	
 	createTuningGrid {arg semitones;
 		// grid increasing in size
 		if(nodestates[0].size < semitones.size, {
@@ -267,8 +279,8 @@ TuningTheory {
 			});
 		});			
 
-		if(tuninggrid.isNil.not, { tuninggrid.remove }); // get rid of the existent grid
-		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 230, 990, 120), columns: semitones, rows: 6, border:true);
+		if(tuninggrid.isNil.not, { tuninggrid.remove }); // get rid of the existing grid
+		tuninggrid = TuningGrid.new(win, bounds: Rect(10, 240, 990, 120), columns: semitones, rows: 6, border:true);
 		tuninggrid.setBackgrColor_(Color.white);
 		tuninggrid.setBorder_(true);
 		tuninggrid.setTrailDrag_(true, true);
@@ -343,16 +355,16 @@ TuningTheory {
 		var playMode, playmodeSC, lastkey;
 		var ratiowin, scalewin, ratiotext;
 
-		var bounds = Rect(20, 5, 1200, 360);
+		var bounds = Rect(20, 5, 1200, 370);
 		gui = true;
 		
 		drawRatiosArray = [];
 		lastkey = 60;
 		playMode = true;
 		playmodeSC = "chord";
-		win = Window.new("- ixi tuning theory -", Rect(100, 500, bounds.width+20, bounds.height+10), resizable:false).front;
-		
-		keybview = MIDIKeyboard.new(win, Rect(10, 60, 990, 160), 5, 36)
+		win = Window.new("- tuning theory -", Rect(100, 500, bounds.width+20, bounds.height+10), resizable:false).front;
+
+		keybview = MIDIKeyboard.new(win, Rect(10, 70, 990, 160), 5, 36)
 				.keyDownAction_({arg key; 
 					fString.string_(key.asString++"  :  "++this.midinotename(key));
 					lastkey = key;
@@ -367,7 +379,7 @@ TuningTheory {
 						notes = notes.collect({arg synth; if(synth != nil, {synth.release; synth = nil }) });
 						tuninggrid.clearGrid;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
-						scaleChordString.string_(this.midinotename(tonic+chord));
+						scaleChordString.string_(this.midinotenameSinOctave(tonic+chord));
 						chord.do({arg degree; 
 							var chordkey = degree + key;
 							notes[chordkey] = Synth(synth, [\out, outbus, \freq, this.calcFreq(chordkey), \amp, 0.5, \cutoff, 20, \pitchBend, pitchBend], target:group);
@@ -394,7 +406,7 @@ TuningTheory {
 							this.setGridNode(chordkey, 1);
 						});
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
-						scaleChordString.string_(this.midinotename(tonic+chord));
+						scaleChordString.string_(this.midinotenameSinOctave(tonic+chord));
 					});
 				})
 				.keyUpAction_({arg key; 
@@ -404,7 +416,7 @@ TuningTheory {
 					}, {
 						//tonic = key;
 						keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
-						scaleChordString.string_(this.midinotename(tonic+chord));
+						scaleChordString.string_(this.midinotenameSinOctave(tonic+chord));
 //						notes = notes.collect({arg synth; if(synth != nil, {synth.release; synth = nil}) });
 //						tuninggrid.clearGrid;
 					});
@@ -412,7 +424,7 @@ TuningTheory {
 		
 		this.createTuningGrid(semitones);		
 
-		midiclientmenu = PopUpMenu.new(win,Rect(10,5,150,16))
+		midiclientmenu = PopUpMenu.new(win,Rect(10,15,150,16))
 				.font_(Font.new("Helvetica", 9))
 				.canFocus_(false)
 				.items_(MIDIClient.sources.collect({arg item; item.device + item.name}))
@@ -423,7 +435,7 @@ TuningTheory {
 					MIDIIn.connect(item.value, MIDIClient.sources.at(item.value));
 				});
 		
-		synthdefmenu = PopUpMenu.new(win,Rect(10,31,100,16))
+		synthdefmenu = PopUpMenu.new(win,Rect(10,41,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(synthdefs)
 				
@@ -433,7 +445,7 @@ TuningTheory {
 					this.synth_(synthdefs[item.value].asSymbol);
 				});
 		
-		outbusmenu = PopUpMenu.new(win,Rect(115,31,45,16))
+		outbusmenu = PopUpMenu.new(win,Rect(115,41,45,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_({|i| ((i*2).asString++","+((i*2)+1).asString)}!26)
 				.value_(0)
@@ -445,22 +457,22 @@ TuningTheory {
 		
 		pitchCircle = XiiTuningPitchCircle.new(12, size:200, win: win);
 		
-		fundNoteString = StaticText.new(win, Rect(700, 5, 100, 20)).string_("tonic :")
+		fundNoteString = StaticText.new(win, Rect(700, 15, 100, 20)).string_("tonic :")
 						.font_(Font.new("Helvetica", 9));
 						
-		fString = StaticText.new(win, Rect(750, 5, 50, 20))
+		fString = StaticText.new(win, Rect(750, 15, 50, 20))
 					.string_(tonic.asString++"  -  "++this.midinotename(tonic))
 					.font_(Font.new("Helvetica", 9));
 		
-		scaleOrChord = StaticText.new(win, Rect(700, 30, 100, 20)).string_("chord :")
+		scaleOrChord = StaticText.new(win, Rect(700, 40, 100, 20)).string_("chord :")
 						.font_(Font.new("Helvetica", 9));
-		scaleChordString = StaticText.new(win, Rect(750, 30, 250, 20))
+		scaleChordString = StaticText.new(win, Rect(750, 40, 250, 20))
 						.string_(tonic.asString++"  -  "++this.midinotename(tonic))
 						.font_(Font.new("Helvetica", 9));
 		
 		chords = XiiTuningTheory.chords;
 		scales = XiiTuningTheory.scales;
-		tunings = XiiTuningTheory.tunings;
+		tunings = XiiTuningTheory.tunings; // reads from a custom file (or defaults to basic tunings)
 		
 		chordnames = [];
 		chords.do({arg item; chordnames = chordnames.add(item[0])});
@@ -470,15 +482,15 @@ TuningTheory {
 		scales.do({arg item; scalenames = scalenames.add(item[0])});
 		scale = scales[0][1];
 		
-		chordmenu = PopUpMenu.new(win,Rect(180,5,100,16))
+		chordmenu = PopUpMenu.new(win,Rect(180,15,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(chordnames)
 				.background_(Color.white)
 				.action_({arg item;
-					play.states_([["play chord", Color.black, Color.clear]]);
+					play.states_([["play chord", Color.black, Color.white]]);
 					chord = chords[item.value][1];
 					scaleOrChord.string_("Chord :");
-					scaleChordString.string_(this.midinotename(tonic+chord));
+					scaleChordString.string_(this.midinotenameSinOctave(tonic+chord));
 					keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 					playmodeSC = "chord";
 					pitchCircle.drawSet(chord, tonic%12);
@@ -493,15 +505,15 @@ TuningTheory {
 					if (unicode == 16rF702, { view.valueAction_(view.value+1) });
 				});
 		
-		scalemenu = PopUpMenu.new(win,Rect(180,31,100,16))
+		scalemenu = PopUpMenu.new(win,Rect(180,41,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(scalenames)
 				.background_(Color.white)
 				.action_({arg item;
-					play.states_([["play scale", Color.black, Color.clear]]);
+					play.states_([["play scale", Color.black, Color.white]]);
 					chord = scales[item.value][1];
 					scaleOrChord.string_("Scale :");
-					scaleChordString.string_(this.midinotename(tonic+chord));
+					scaleChordString.string_(this.midinotenameSinOctave(tonic+chord));
 					keybview.showScale(chord, tonic, Color.new255(103, 148, 103));
 					playmodeSC = "scale";
 					pitchCircle.drawSet(chord, tonic%12);
@@ -517,12 +529,11 @@ TuningTheory {
 				});
 		
 		
-		tuningmenu = PopUpMenu.new(win,Rect(300,31,100,16))
+		tuningmenu = PopUpMenu.new(win,Rect(300,41,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(tunings)
 				.mouseDownAction_({arg view;
-					tunings = XiiTuningTheory.tunings;
-					view.items_(tunings);
+					view.items_(tunings); // this is needed as new tunings can be created
 				})
 				.background_(Color.white)
 				.action_({arg item;
@@ -538,24 +549,17 @@ TuningTheory {
 					if (unicode == 16rF702, { view.valueAction_(view.value+1) });
 				});
 		
-		TuningRadioButton.new(win, Rect(300, 5, 12, 12), "play mode")
+		TuningRadioButton.new(win, Rect(300, 15, 16, 16), "play mode")
 			.font_(Font.new("Helvetica", 9))
 			.value_(1)
+			.color_(Color.white)
 			.action_({arg sl; 
 				playMode = sl.value.booleanValue;
-				/*
-				if(playMode, {
-					keybview.clear;
-					fundNoteString.string_("Note :")
-				}, {
-					fundNoteString.string_("tonic :")
-				});
-				*/
 			});
 		
-		play = Button.new(win,Rect(420,5,90,18))
+		play = Button.new(win,Rect(420,15,90,18))
 			.font_(Font.new("Helvetica", 9))
-			.states_([["play scale", Color.black, Color.clear]])
+			.states_([["play scale", Color.black, Color.white]])
 			.action_({
 				var tempchord;
 				chord.postln;
@@ -591,9 +595,9 @@ TuningTheory {
 				}).start;
 			});
 
-		Button.new(win,Rect(520,5,120,18))
+		Button.new(win,Rect(520,15,120,18))
 			.font_(Font.new("Helvetica", 9))
-			.states_([["make last note tuning ref", Color.black, Color.clear]])
+			.states_([["make last note tuning ref", Color.black, Color.white]])
 			.action_({
 				[\tonic, tonic].postln;
 				[\lastkey, lastkey].postln;
@@ -602,17 +606,17 @@ TuningTheory {
 				tuningreftext.string_("tuning ref : "++ lastkey.asString +":"+ this.midinotename(lastkey));
 			});
 		
-		tuningreftext = StaticText.new(win, Rect(534, 30, 120, 20)).string_("tuning ref : 60 - C3")
+		tuningreftext = StaticText.new(win, Rect(534, 40, 120, 20)).string_("tuning ref : 60 - C3")
 						.font_(Font.new("Helvetica", 9));
 
 		
-		Button.new(win, Rect(420,31,90,18))
+		Button.new(win, Rect(420,41,90,18))
 			.font_(Font.new("Helvetica", 9))
 			.canFocus_(false)
-			.states_([["tuning ratios", Color.black, Color.clear]])
+			.states_([["tuning ratios", Color.black, Color.white]])
 			.action_({
 				var ratiolisttext, lastselection, degreeslotmenu, roundmultiple;
-				var tuningslider, tuningnumber;
+				var tuningslider, tuningnumber, fineslider = 1;
 				var slot=1;
 				var offset = tuningratios[slot];
 				
@@ -654,8 +658,14 @@ TuningTheory {
 				tuningslider = Slider.new(ratiowin, Rect(45, 132, 250,16))
 					.value_(0.5)
 					.mouseDownAction_({ lastratiolisttext = ratiolisttext.string })
+					.keyDownAction_({arg view, key, mod, unicode; 
+						if(unicode == 32, { fineslider = 0.1 }); // the resolution of the slider
+					})
+					.keyUpAction_({arg view, key, mod, unicode; 
+						if(unicode == 32, { fineslider = 1 });
+					})
 					.action_({arg sl;
-						tuningratios[slot] = (offset + sl.value.linlin(0, 1, -0.01, 0.01)).round(roundmultiple);
+						tuningratios[slot] = (offset + sl.value.linlin(0, 1, -0.01*fineslider, 0.01*fineslider)).round(roundmultiple);
 						ratiotext.string_(this.findRatios(tuningratios).asString);
 						ratiolisttext.string_(tuningratios.asCompileString);
 						this.tuning_(ratiotext.string.interpret);
@@ -672,7 +682,7 @@ TuningTheory {
 					});
 				Button.new(ratiowin, Rect(150, 155, 70, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["undo", Color.black, Color.clear]])
+					.states_([["undo", Color.black, Color.white]])
 					.action_({
 						this.tuning_(lastratiolisttext.interpret);
 						ratiolisttext.string_(tuningratios.asCompileString);
@@ -682,7 +692,7 @@ TuningTheory {
 					});
 				Button.new(ratiowin, Rect(225, 155, 70, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["confirm", Color.black, Color.clear]])
+					.states_([["confirm", Color.black, Color.white]])
 					.action_({
 						if(lastselection == "ratiotext", {
 							ratiolisttext.string_(tuningratios.asCompileString);
@@ -696,7 +706,7 @@ TuningTheory {
 					});
 				Button.new(ratiowin, Rect(315, 130, 65, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["get ratios", Color.black, Color.clear]])
+					.states_([["get ratios", Color.black, Color.white]])
 					.action_({
 						ratiotext.string_(this.findRatios(tuningratios).asString);
 						ratiolisttext.string_(tuningratios.asCompileString);
@@ -704,7 +714,7 @@ TuningTheory {
 					});
 				Button.new(ratiowin, Rect(385, 130, 65, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["post cents", Color.black, Color.clear]])
+					.states_([["post cents", Color.black, Color.white]])
 					.action_({
 						" ------- Current tuning in cents ------- ".postln;
 						((tuningratios.ratiomidi.round(0.00001) *100)).postln;
@@ -712,13 +722,13 @@ TuningTheory {
 //				Button.new(ratiowin, Rect(445, 130, 65, 20))
 				Button.new(ratiowin, Rect(315, 155, 65, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["draw ratios", Color.black, Color.clear]])
+					.states_([["draw ratios", Color.black, Color.white]])
 					.action_({
 						this.drawRatios(ratiotext.string.interpret);
 					});
 				Button.new(ratiowin, Rect(385, 155, 65, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["try ratios", Color.black, Color.clear]])
+					.states_([["try ratios", Color.black, Color.white]])
 					.action_({
 						if(lastselection == "ratiotext", {
 							ratiolisttext.string_(tuningratios.asCompileString);
@@ -732,20 +742,20 @@ TuningTheory {
 					});
 				 Button.new(ratiowin, Rect(500, 130, 90, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["edit tuningmenu", Color.black, Color.clear]])
+					.states_([["edit tuningmenu", Color.black, Color.white]])
 					.action_({arg butt;
 						var tuningfilepath = Platform.userAppSupportDir+/+"scl_user/_tuningmenu.scd";						("open "++tuningfilepath.quote).unixCmd;
 					});
 				 Button.new(ratiowin, Rect(500, 155, 90, 20))
 					.font_(Font.new("Helvetica", 9))
-					.states_([["create Scala file", Color.black, Color.clear]])
+					.states_([["create Scala file", Color.black, Color.white]])
 					.action_({arg butt;
 						var scaletext, scaletrybutt, scalesavebutt, scalastring;
 						scalewin = Window.new("scala tuning", Rect(ratiowin.bounds.left+ratiowin.bounds.width+10, win.bounds.top-430, 610, 400)).front;
 						scaletext= TextView.new(scalewin, Rect(10, 10, 590, 350));
 						Button.new(scalewin, Rect(10, 370, 120, 20))
 										.font_(Font.new("Helvetica", 9))
-										.states_([["Scala information", Color.black, Color.clear]])
+										.states_([["Scala information", Color.black, Color.white]])
 										.action_({
 											Document.new.string_("\nTHE SCALA FILE FORMAT \n\nSee info here: http://www.huygens-fokker.org/scala/scl_format.html\n
 Here is an example of a valid file. Note:\n
@@ -775,9 +785,9 @@ Here is an example of a valid file. Note:\n
 ----------------------------------------------\n
 When you save a Scala file, it will saved under the name you give your scale in the first line.\nIt will be saved in the scl_user folder (as not to mix with the official Huygens-Fokker archive)").promptToSave_(false);
 										});
-						scaletrybutt = Button.new(scalewin, Rect(410, 370, 80, 20))
+						scaletrybutt = Button.new(scalewin, Rect(435, 370, 80, 20))
 										.font_(Font.new("Helvetica", 9))
-										.states_([["Try Tuning", Color.black, Color.clear]])
+										.states_([["try tuning", Color.black, Color.white]])
 										.action_({
 											var scalefile, scalename;
 											scalefile = File(Platform.userAppSupportDir+/+"scl_user/_temp.scl", "w");
@@ -785,9 +795,9 @@ When you save a Scala file, it will saved under the name you give your scale in 
 											scalefile.close;
 											this.tuning_(\_temp);
 										});
-						scalesavebutt = Button.new(scalewin, Rect(510, 370, 80, 20))
+						scalesavebutt = Button.new(scalewin, Rect(520, 370, 80, 20))
 										.font_(Font.new("Helvetica", 9))
-										.states_([["Save Tuning", Color.black, Color.clear]])
+										.states_([["save tuning", Color.black, Color.white]])
 										.action_({
 											var scalefile, scalename;
 											scalename = scaletext.string[2..scaletext.string.find(".scl")-1];
@@ -795,8 +805,9 @@ When you save a Scala file, it will saved under the name you give your scale in 
 											scalefile = File(Platform.userAppSupportDir+/+"scl_user/"++scalename++".scl", "w");
 											scalefile.write(scaletext.string);
 											scalefile.close;
-											tunings = tunings.add([scalename.asString, scalename.asSymbol]);
-											tuningmenu.items_(tunings.collect({arg tuning; tuning[0]}) );
+											tunings = tunings.add(scalename);
+											[\tunings, tunings].postln;
+											//tuningmenu.items_( tunings );
 										});
 
 						scalastring = "! _temp.scl
@@ -810,19 +821,19 @@ scalastring = scalastring ++ "2/1";
 			});
 		});
 		
-		Button.new(win,Rect(1008, 310, 90, 18))
+		Button.new(win,Rect(1008, 320, 90, 18))
 			.font_(Font.new("Helvetica", 9))
 			.canFocus_(false)
-			.states_([["clear keyboard", Color.black, Color.clear]])
+			.states_([["clear keyboard", Color.black, Color.white]])
 			.action_({
-				notes = notes.collect({arg synth; if(synth != nil, {synth.release; synth = nil }) });
+				notes = notes.collect({arg synth; if(synth != nil, { synth.release; synth = nil }) });
 				keybview.clear;
 			});
 			
-		Button.new(win,Rect(1008, 335, 90, 18))
+		Button.new(win,Rect(1008, 345, 90, 18))
 			.font_(Font.new("Helvetica", 9))
 			.canFocus_(false)
-			.states_([["clear grid", Color.black, Color.clear]])
+			.states_([["clear grid", Color.black, Color.white]])
 			.action_({
 				tuninggrid.clearGrid;
 				this.drawRatios([]); // empty drawing harmonics list
