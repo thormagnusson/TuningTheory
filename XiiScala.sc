@@ -1,8 +1,7 @@
 /*
 
 A SuperCollider support for reading Scala files:
-http://www.xs4all.nl/~huygensf/scala/scl_format.html
-
+http://www.huygens-fokker.org/scala/scl_format.html
 
 a = XiiScala("bohlen-p_9");
 a.tuning.octaveRatio

@@ -5,9 +5,9 @@
 
 TuningTheory {
 
-	var win, gui, keybview, tuninggrid, notes, keyboardnotes, gridnotes, group, tuningreference, tonic, pitchBend;
+	var win, gui, keybview, tuninggrid, notes, keyboardnotes, gridnotes, group, <tuningreference, tonic, pitchBend;
 	var synthdefs, synth;
-	var calcFreq, semitones, tuningratios, lastratiolisttext, nodestates, drawRatiosArray;
+	var calcFreq, semitones, tuningratios, lastratiolisttext, nodestates, drawRatiosArray, lastkey;
 	var <tuning, outbus, chordArray, <>noteRecArray;
 		
 	*new {
@@ -18,6 +18,7 @@ TuningTheory {
 		
 		tuningreference = 0; // by default in C
 		tonic = 60;
+		tuning = \et12;
 		pitchBend = 1;
 		outbus = 0;
 		synthdefs = [\saw, \sine, \moog];
@@ -38,7 +39,7 @@ TuningTheory {
 			"MIDI Keyboard Ready for Play !!! ".postln;
 			this.makeSynths();
 			this.midiSetup();
-			this.tuning_(\et12);
+			this.tuning_(tuning);
 			group = Group.new; //  create a Group to be able to set cutoff of all active notes
 		});
 
@@ -75,7 +76,7 @@ TuningTheory {
 			keyboardnotes[key] = Synth(synth, [\out, outbus, \freq, this.calcFreq(key), \amp, vel/127, \cutoff, 10, \pitchBend, pitchBend], target:group);
 			chordArray = chordArray.add(key);
 			noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
-			
+			lastkey = key; 
 			this.findChord(chordArray);
 			if(gui, {	 {
 				keybview.keyDown(key);
@@ -126,7 +127,8 @@ TuningTheory {
 	}
 	
 	tuningreference_ {arg ton; // this is in MIDI standard, so 0 is C, 1 is C#, 2 is D, etc. (A is 9)
-		tuningreference = ton;	
+		tuningreference = ton;
+		this.tuning_(tuning);
 	}
 
 	makeSynths {
@@ -352,7 +354,7 @@ TuningTheory {
 		var midiclientmenu, synthdefmenu, outbusmenu, tuningmenu, pitchCircle, fundNoteString, fString, scaleOrChord, scaleChordString;
 		var chordmenu, scalemenu, play, mousesynth, tuningreftext;
 		var chords, scales, tunings, chordnames, chord, scalenames, scale;
-		var playMode, playmodeSC, lastkey;
+		var playMode, playmodeSC;
 		var ratiowin, scalewin, ratiotext;
 
 		var bounds = Rect(20, 5, 1200, 370);
@@ -438,7 +440,6 @@ TuningTheory {
 		synthdefmenu = PopUpMenu.new(win,Rect(10,41,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(synthdefs)
-				
 				.value_(synthdefs.indexOf(synth))
 				.background_(Color.white)
 				.action_({arg item;
@@ -528,10 +529,13 @@ TuningTheory {
 					if (unicode == 16rF702, { view.valueAction_(view.value+1) });
 				});
 		
+		[\tunings, tunings].postln;
+		[\tuning, tuning].postln;
 		
 		tuningmenu = PopUpMenu.new(win,Rect(300,41,100,16))
 				.font_(Font.new("Helvetica", 9))
 				.items_(tunings)
+				.value_(tunings.collect({|tun|tun.asSymbol}).indexOf(tuning))
 				.mouseDownAction_({arg view;
 					view.items_(tunings); // this is needed as new tunings can be created
 				})
@@ -759,11 +763,12 @@ TuningTheory {
 										.action_({
 											Document.new.string_("\nTHE SCALA FILE FORMAT \n\nSee info here: http://www.huygens-fokker.org/scala/scl_format.html\n
 Here is an example of a valid file. Note:\n
-- The first line is the scale name
-- The third line is the description of the scale
-- the fourthe line is the number of degrees in the scale
-- then we have the ratios, line by line 
-- the 1/1 (first degree) is skipped and it's possible to mix rational numbers and cents\n
+- the first line is the scale name
+- the third line is the description of the scale
+- the fourth line is the number of degrees in the scale
+- then we have the individual ratios, line by line 
+- the 1/1 (first degree) is skipped 
+- it is possible to mix rational numbers and cents\n
 ----------------------------------------------
 ! meanquar.scl
 !
@@ -881,6 +886,21 @@ a.createGUI
 
 a.tuningreference = 0 // c
 a.tuningreference = 2 // d
+
+a.tuningreference = 1 // d
+a.tuningreference = 2 // d
+a.tuningreference = 3 // d
+a.tuningreference = 4 // d
+a.tuningreference = 5 // d
+a.tuningreference = 6 // d
+a.tuningreference = 7 // d
+a.tuningreference = 8 // d
+a.tuningreference = 9 // d
+a.tuningreference = 10 // d
+a.tuningreference = 11 // d
+a.tuningreference = 12 // d
+a.tuningreference = 13 // d
+
 a.synth = \saw
 a.synth = \moog
 a.tuning = \just
@@ -901,6 +921,9 @@ a.tuning
 
 a.tuning = \vallotti
 a.tuning = [ 1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 9/5, 15/8 ]
+
+a.tuningreference = 2; // tuning is now in D (C is default - integers are half-notes)
+
 
 a.postLists
 
