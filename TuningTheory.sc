@@ -78,7 +78,7 @@ TuningTheory {
 			noteRecArray = noteRecArray.add(key); // just recording everything. User can clear and get at it through <>
 			lastkey = key; 
 			this.findChord(chordArray);
-			if(gui, {	 {
+			if(gui && (key>35) && (key<96), { {
 				keybview.keyDown(key);
 				this.setGridNode(key, 1);
 				}.defer });
@@ -89,7 +89,7 @@ TuningTheory {
 			keyboardnotes[key] = nil;
 			chordArray.remove(key);
 			//this.findChord(chordArray);
-			if( gui, { { 
+			if( gui && (key>35) && (key<96), { { 
 				keybview.keyUp( key );
 				this.setGridNode(key, 0);
 				}.defer });
